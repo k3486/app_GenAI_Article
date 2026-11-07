@@ -29,7 +29,8 @@ sources:
     kind: official
     fetch: sitemap
     url: "https://www.anthropic.com/sitemap.xml"
-    pattern: '^https://www\.anthropic\.com/news/[a-z0-9-]+$'
+    # announcements などは記事ではなくカテゴリの一覧ページ
+    pattern: '^https://www\.anthropic\.com/news/(?!(?:announcements|features|models|partnerships|policy|product|safeguards|security)$)[a-z0-9-]+$'
   - key: anthropic-research
     name: Anthropic Research
     kind: official

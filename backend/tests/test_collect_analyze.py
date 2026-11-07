@@ -7,7 +7,7 @@ from app.models import Article, ArticleText, LlmUsage, Run, RunIssue, Score, Sou
 from app.schemas.analysis import GroupOutput, TopicJoin
 from app.schemas.settings import Settings
 from app.services.app_settings import load_settings
-from app.services.collect.group import group_new
+from app.services.collect.group import ARTICLE_ID_OFFSET, group_new
 from app.services.collect.score import score_pending
 from app.services.collect.select import select_scored
 from app.services.llm.budget import Budget
@@ -131,10 +131,12 @@ async def test_haiku_decides_joins_and_sets_and_ignores_unknown_ids(session: Ses
     def responder(*_: object) -> BaseModel:
         return GroupOutput(
             joins=[
-                TopicJoin(article_id=a2.id or 0, topic_id=topic.id or 0),
+                TopicJoin(article_id=(a2.id or 0) + ARTICLE_ID_OFFSET, topic_id=topic.id or 0),
                 TopicJoin(article_id=999, topic_id=topic.id or 0),
             ],
-            same_topic_sets=[[a3.id or 0, a4.id or 0, 12345]],
+            same_topic_sets=[
+                [(a3.id or 0) + ARTICLE_ID_OFFSET, (a4.id or 0) + ARTICLE_ID_OFFSET, 12345]
+            ],
         )
 
     llm, backend = make_llm(responder)
@@ -146,6 +148,8 @@ async def test_haiku_decides_joins_and_sets_and_ignores_unknown_ids(session: Ses
     assert (report.joined, report.merged, report.new_topics) == (1, 1, 2)
     assert "話題ID" in backend.calls[0].system[1] and "Title 1" in backend.calls[0].system[1]
     assert session.exec(select(LlmUsage)).one().purpose == "group"
+    # Haiku に見せる記事 ID は話題 ID と数字が重ならない（取り違え防止）
+    assert f'id="{(a2.id or 0) + ARTICLE_ID_OFFSET}"' in backend.calls[0].user
 
 
 async def test_haiku_failure_makes_single_topics_and_records_the_issue(session: Session) -> None:

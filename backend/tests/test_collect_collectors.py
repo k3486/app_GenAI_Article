@@ -100,7 +100,7 @@ def test_parse_listing_resolves_links_and_deduplicates() -> None:
         "https://ai.example.com/blog/one/",
         "https://ai.example.com/blog/two",
     ]
-    assert items[0].title == "One post"
+    assert all(i.title == "" for i in items)  # リンク文字は見出しにしない
 
 
 def test_parse_zenn_qiita_and_hf() -> None:

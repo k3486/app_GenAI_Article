@@ -20,6 +20,8 @@ from app.services.llm.skills import Skill, load_skill
 WINDOW_DAYS = 3
 CHUNK = 40  # 1回の呼び出しで判定する新着の件数
 NEW_EXCERPT = 500
+# Haiku に見せる記事 ID は、話題 ID と数字が重ならないよう、この値を足す（取り違え防止）
+ARTICLE_ID_OFFSET = 100_000
 TOPIC_EXCERPT = 150
 _KIND_RANK = {"official": 0, "media": 1, "paper": 2}
 
@@ -190,7 +192,7 @@ async def _ask(
             )
     context = "# 既存の話題（直近3日）\n" + ("\n".join(lines) if lines else "（まだありません）")
     news = "\n".join(
-        f'<article id="{a.id}">\nタイトル: {a.title_original}\n'
+        f'<article id="{(a.id or 0) + ARTICLE_ID_OFFSET}">\nタイトル: {a.title_original}\n'
         f"冒頭: {_excerpt(session, a, NEW_EXCERPT)}\n</article>"
         for a in chunk
     )
@@ -199,7 +201,7 @@ async def _ask(
         context=context,
         user=f"# 新着の記事\n{news}",
         output_type=GroupOutput,
-        effort="low",
+        effort="medium",  # low だとニュースレターや別の話題を誤ってまとめた（2026-11-07 実測）
         max_tokens=4000,
     )
     record_usage(session, run, result.usage, purpose="group")
@@ -215,23 +217,25 @@ def _apply_group(
     now: datetime,
     report: GroupReport,
 ) -> None:
-    by_id = {a.id: a for a in chunk}
+    by_id = {(a.id or 0) + ARTICLE_ID_OFFSET: a for a in chunk}
     used: set[int] = set()
     if output is not None:
         valid_topics = set(session.exec(select(Topic.id)).all())
         for join in output.joins:
             article = by_id.get(join.article_id)
-            if article is None or join.article_id in used or join.topic_id not in valid_topics:
+            if article is None or article.id in used or join.topic_id not in valid_topics:
                 continue
             _attach(session, [article], join.topic_id, ["related"])
-            used.add(join.article_id)
+            used.add(article.id or 0)
             report.joined += 1
         for ids in output.same_topic_sets:
-            members = [by_id[i] for i in dict.fromkeys(ids) if i in by_id and i not in used]
+            members = [
+                by_id[i] for i in dict.fromkeys(ids) if i in by_id and by_id[i].id not in used
+            ]
             if len(members) < 2:
                 continue
             _make_topic(session, run, members, kinds, now)
-            used.update(a.id for a in members if a.id is not None)
+            used.update(a.id or 0 for a in members)
             report.new_topics += 1
             report.merged += len(members) - 1
     for article in chunk:

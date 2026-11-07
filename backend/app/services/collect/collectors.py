@@ -118,14 +118,14 @@ def parse_sitemap(text: str, source_key: str, pattern: str) -> list[Candidate]:
 def parse_listing(html: str, base_url: str, source_key: str, pattern: str) -> list[Candidate]:
     regex = re.compile(pattern)
     seen: dict[str, Candidate] = {}
-    for href, inner in _ANCHOR.findall(html):
+    for href, _text in _ANCHOR.findall(html):
         absolute = urljoin(base_url, html_lib.unescape(href).strip())
         parts = urlsplit(absolute)
         url = urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
         if regex.search(url) and url not in seen:
-            seen[url] = Candidate(
-                url=url, source_key=source_key, title=clean_summary(inner, limit=200)
-            )
+            # リンクの文字は「Learn More」「FEATURED」などのことがあるので見出しにしない
+            # （取得後にページ自身の見出しが入る）
+            seen[url] = Candidate(url=url, source_key=source_key, title="")
     return list(seen.values())
 
 
