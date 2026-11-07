@@ -14,10 +14,20 @@
   // APIキーは環境変数としてだけ渡す（.secrets フォルダ自体はコンテナにマウントしない）
   "runArgs": ["--env-file", "${localWorkspaceFolder}/../.secrets/.env"],
   "containerEnv": {
-    "UV_PYTHON_PREFERENCE": "only-system"
+    "UV_PYTHON_PREFERENCE": "only-system",
+    // .venv はコンテナ内の速いボリュームに置く。キャッシュとは別のディスクなのでコピーで入れ、.pyc も作っておく
+    "UV_LINK_MODE": "copy",
+    "UV_COMPILE_BYTECODE": "1"
   },
   // Claude Code のログイン情報は全リポジトリ共通の固定名ボリュームに保存（リポジトリを変えても再ログイン不要）
-  "mounts": ["source=claude-code-config,target=/home/vscode/.claude,type=volume"],
-  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude && curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=$HOME/.local/bin:$PATH && make setup && (sudo mv /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn.list.disabled 2>/dev/null || true) && npx -y playwright install --with-deps chrome",
+  // .venv と node_modules は、リポジトリ（Windows のディスクを 9p で見ている遅い場所）の外の名前付きボリュームに置く
+  // （小さなファイルが数千個ある SDK の import が約150秒かかっていたため。コンテナを作り直しても残る）
+  "mounts": [
+    "source=claude-code-config,target=/home/vscode/.claude,type=volume",
+    "source=${localWorkspaceFolderBasename}-venv,target=${containerWorkspaceFolder}/backend/.venv,type=volume",
+    "source=${localWorkspaceFolderBasename}-node-modules,target=${containerWorkspaceFolder}/frontend/node_modules,type=volume"
+  ],
+  // ボリュームは最初 root の持ち物なので、vscode ユーザーが書き込めるようにする（実行場所はリポジトリ直下）
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude backend/.venv frontend/node_modules && curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=$HOME/.local/bin:$PATH && make setup && (sudo mv /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn.list.disabled 2>/dev/null || true) && npx -y playwright install --with-deps chrome",
   "forwardPorts": [8000, 5173]
 }
