@@ -24,8 +24,8 @@ DEFAULT_WEIGHTS: dict[CriterionKey, int] = {
     "trust": 15,
     "depth": 15,
 }
-DEFAULT_THRESHOLD = 60
-OFFICIAL_BONUS = 10
+DEFAULT_THRESHOLD = 70
+OFFICIAL_BONUS = 5
 # 関心との一致がこの点以下の記事は、通常の選定に入れない
 MIN_INTEREST = 3
 # 「新しさ・重要度」がこの点なら、関心が低くても重大ニュースの候補にする
@@ -55,7 +55,7 @@ def compute_total(
     *,
     official: bool,
 ) -> int:
-    """各観点を (点数−1)÷4 にして重みを掛けて合計し、公式記事は +10 する。"""
+    """各観点を (点数−1)÷4 にして重みを掛けて合計し、公式記事は OFFICIAL_BONUS を足す。"""
     weighted = sum(weights[key] * (scores[key] - 1) / 4 for key in CRITERIA)
     bonus = OFFICIAL_BONUS if official else 0
     return math.floor(weighted + 0.5) + bonus

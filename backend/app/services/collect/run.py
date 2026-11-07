@@ -1,4 +1,4 @@
-"""収集の実行（候補を集める → 絞る → 登録 → 本文を取る）。段階 5・6 で、採点以降をここにつなぐ。"""
+"""更新の実行（候補を集める → 絞る → 登録 → 本文を取る → 話題をまとめる → 採点 → 選定）。"""
 
 from collections import Counter
 from dataclasses import dataclass, field
@@ -13,6 +13,7 @@ from app.services.app_settings import load_settings
 from app.services.collect.browser import BrowserFetcher, Renderer
 from app.services.collect.collectors import Candidate, SourceResult, discover
 from app.services.collect.fetcher import Fetcher
+from app.services.collect.group import GroupReport, group_new
 from app.services.collect.pipeline import (
     FetchReport,
     fetch_pending,
@@ -21,12 +22,20 @@ from app.services.collect.pipeline import (
     register_candidates,
     window_start,
 )
+from app.services.collect.score import ScoreReport, score_pending
+from app.services.collect.select import SelectReport, select_scored
 from app.services.collect.source_config import (
     SourcesFile,
     load_ai_keywords,
     sync_sources,
 )
 from app.services.collect.urls import Resolver, resolve_host
+from app.services.llm.backend import AnthropicBackend, LlmBackend
+from app.services.llm.budget import Budget
+from app.services.llm.client import Llm
+from app.services.llm.errors import LlmError
+from app.services.llm.models import resolve_haiku
+from app.services.runs import month_cost
 
 
 @dataclass
@@ -48,6 +57,11 @@ class CollectSummary:
     registered: int
     fetch: FetchReport
     status: str
+    model_id: str = ""
+    cost_usd: float = 0.0
+    group: GroupReport | None = None
+    score: ScoreReport | None = None
+    select: SelectReport | None = None
 
 
 async def run_collection(
@@ -63,6 +77,8 @@ async def run_collection(
     transport: httpx2.AsyncBaseTransport | None = None,
     resolver: Resolver = resolve_host,
     browser: Renderer | None = None,
+    use_llm: bool = True,
+    llm_backend: LlmBackend | None = None,
 ) -> CollectSummary:
     now = now or datetime.now(UTC)
     since = window_start(now, since_days)
@@ -119,12 +135,26 @@ async def run_collection(
         if own_browser is not None:
             await own_browser.aclose()
 
+    group: GroupReport | None = None
+    score: ScoreReport | None = None
+    chosen_report: SelectReport | None = None
+    if run is not None and use_llm:
+        llm = await _prepare_llm(session, run, llm_backend)
+        group = await group_new(session, llm, run=run, now=now)
+        if llm is not None:
+            score = await score_pending(
+                session, llm, run=run, settings=load_settings(session), now=now
+            )
+        chosen_report = select_scored(session, run=run, settings=load_settings(session), now=now)
+
     status = "succeeded"
     if run is not None:
         has_issue = session.exec(
             select(func.count()).select_from(RunIssue).where(col(RunIssue.run_id) == run.id)
         ).one()
         status = "partial" if has_issue else "succeeded"
+        if (score and score.budget_stopped) or (group and group.budget_stopped):
+            status = "budget_stopped"
         run.status = status
         run.new_count = len(registered)
         run.finished_at = datetime.now(UTC)
@@ -139,7 +169,52 @@ async def run_collection(
         registered=len(registered),
         fetch=fetch,
         status=status,
+        model_id=run.model_id if run else "",
+        cost_usd=run.cost_usd if run else 0.0,
+        group=group,
+        score=score,
+        select=chosen_report,
     )
+
+
+async def _prepare_llm(session: Session, run: Run, backend: LlmBackend | None) -> Llm | None:
+    """使う Haiku を決めて、費用の上限つきの口を作る。使えないときは理由を残して None を返す。"""
+    assert run.id is not None
+    try:
+        backend = backend or AnthropicBackend()
+        previous = session.exec(
+            select(Run.model_id)
+            .where(col(Run.id) != run.id, col(Run.model_id) != "")
+            .order_by(col(Run.id).desc())
+        ).first()
+        choice = await resolve_haiku(backend, previous)
+    except LlmError as error:
+        session.add(
+            RunIssue(
+                run_id=run.id,
+                source_name="Haiku",
+                stage="モデルの選択",
+                message=f"Haiku を使えないため、採点を行いませんでした（{error}）",
+            )
+        )
+        session.commit()
+        return None
+    run.model_id = choice.model_id
+    if previous and previous != choice.model_id:
+        run.previous_model_id = previous
+    if choice.note:
+        session.add(
+            RunIssue(run_id=run.id, source_name="Haiku", stage="モデルの選択", message=choice.note)
+        )
+    session.add(run)
+    session.commit()
+    settings = load_settings(session)
+    budget = Budget(
+        run_limit_usd=settings.run_limit_usd,
+        month_limit_usd=settings.month_limit_usd,
+        month_spent_usd=month_cost(session),
+    )
+    return Llm(backend, choice.model_id, budget)
 
 
 def _record_source_errors(session: Session, run: Run, results: list[SourceResult]) -> None:

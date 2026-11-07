@@ -6,10 +6,20 @@ from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
 import app.models  # noqa: F401  すべての表を登録する
+from app.config import get_settings
 from app.db import configure_sqlite, get_session
 from app.main import create_app
 from app.services.search import create_search_index
 from scripts.seed_sample import seed
+
+
+@pytest.fixture(autouse=True)
+def no_real_llm_key(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """テスト中に本物の Anthropic API を呼ばない（キーが環境にあっても使えなくする）。"""
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
 
 
 @pytest.fixture

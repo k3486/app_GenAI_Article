@@ -36,9 +36,9 @@ def test_three_is_half_of_the_weight() -> None:
     assert compute_total(_scores(3, 3, 3, 3, 3), DEFAULT_WEIGHTS, official=False) == 50
 
 
-def test_all_fives_is_100_and_official_adds_ten() -> None:
+def test_all_fives_is_100_and_official_adds_five() -> None:
     assert compute_total(_scores(5, 5, 5, 5, 5), DEFAULT_WEIGHTS, official=False) == 100
-    assert compute_total(_scores(5, 5, 5, 5, 5), DEFAULT_WEIGHTS, official=True) == 110
+    assert compute_total(_scores(5, 5, 5, 5, 5), DEFAULT_WEIGHTS, official=True) == 105
 
 
 def test_label_switches_for_paper_and_announcement() -> None:
@@ -49,7 +49,8 @@ def test_label_switches_for_paper_and_announcement() -> None:
 
 
 def test_selected_needs_interest_three_and_threshold() -> None:
-    ok = _breakdown(_scores(4, 4, 3, 4, 3))
+    ok = _breakdown(_scores(4, 4, 4, 4, 4))  # 75点（しきい値は 70）
+    assert decide_selection(_breakdown(_scores(4, 4, 3, 4, 3)), DEFAULT_THRESHOLD) == "rejected"
     assert decide_selection(ok, DEFAULT_THRESHOLD) == "selected"
     # 合計は高くても、関心が2以下なら通常の選定に入れない
     low_interest = _breakdown(_scores(2, 5, 4, 5, 5))
@@ -65,3 +66,11 @@ def test_major_when_freshness_is_five_but_not_selected() -> None:
 def test_below_threshold_is_rejected() -> None:
     low = _breakdown(_scores(3, 2, 2, 3, 2))
     assert decide_selection(low, DEFAULT_THRESHOLD) == "rejected"
+
+
+def test_rejection_reason_distinguishes_cap_overflow_from_low_score() -> None:
+    from app.services.topics import rejection_reason
+
+    assert "上限" in rejection_reason(90, 5, 60)  # 線を超えたが、件数の上限であふれた
+    assert "届きませんでした" in rejection_reason(50, 4, 60)
+    assert "関心" in rejection_reason(90, 2, 60)

@@ -53,6 +53,11 @@ def auto_dismiss(session: Session, now: datetime | None = None) -> int:
 def rejection_reason(card_total: int, interest: int, threshold: int) -> str:
     if interest < 3:
         return "関心との一致が低い（2以下）ため、通常の選定に入れませんでした。"
+    if card_total >= threshold:
+        return (
+            f"合計{card_total}点で選定の線（{threshold}点）は超えましたが、"
+            "1回の選定件数の上限に入りませんでした。"
+        )
     return f"合計が{card_total}点で、選定の線（{threshold}点）に届きませんでした。"
 
 

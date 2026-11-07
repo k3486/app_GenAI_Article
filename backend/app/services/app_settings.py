@@ -22,7 +22,7 @@ def default_settings() -> Settings:
         profile=PROFILE_PATH.read_text(encoding="utf-8"),
         weights=Weights(**DEFAULT_WEIGHTS),
         threshold=DEFAULT_THRESHOLD,
-        max_selected=10,
+        max_selected=20,
         max_major=3,
         max_candidates=200,
         max_scored=50,

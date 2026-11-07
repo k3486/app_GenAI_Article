@@ -8,17 +8,19 @@
 ```
 - 開発中は Vite のプロキシで同一オリジンになるため CORS は設定していない
 - 本番（将来・AWS）は静的ファイル（frontend/dist）と API を同一オリジンで配信する想定（段階②で決める）
-- 記事の収集は、API とは別のプロセス（`scripts/collect.py`）で動かす。Haiku の処理も同様に別プロセスで動かす設計（未実装）
+- 記事の収集と Haiku の処理（話題のまとめ・採点・選定）は、API とは別のプロセス（`scripts/collect.py`）で動かす
 
 ## バックエンド（backend/）
 - `app/main.py` の `create_app()` が `app/api` のルーターを登録
 - 依存方向: `api → services → models / db`（逆向きの import はしない）
 - `app/api/` 受付係（薄い）／`app/services/` 処理本体／`app/models/` 表／`app/schemas/` API の入出力の型
 - 主な services: `topics`（一覧・詳細・操作）、`scoring`（点数と選定の判定）、`insights`（分析の集計）、
-  `collect/`（収集: urls・fetcher・extract・browser・collectors・pipeline・run）、
+  `collect/`（収集: urls・fetcher・extract・browser・collectors・pipeline・run、Haiku の段階: group・score・select）、
+  `llm/`（Haiku を呼ぶ口: backend・client・budget・pricing・models・skills・context・ledger）、
   `runs`（実行履歴・費用・失敗判定）、`sources`、`app_settings`、`search`（全文検索の窓口）、`backup`
 - 設定は `app/config.py`（環境変数のみ）。DB セッションは `Depends(get_session)`
 - `scripts/`: `collect.py`（収集）、`seed_sample.py`（試しのデータ）、`backup.py`。`sample_data.py` は試しのデータの定義
+- `skills/`: Haiku への指示（スキル。`score`・`group`）。内容のハッシュを版として点数に記録する
 - `config/sources.yaml`（情報源）、`config/scoring.yaml`（AI 関連語）
 - `config/interest_profile.default.md`: 興味プロファイルの初期値（アプリ起動後は DB の設定が正）
 

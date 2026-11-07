@@ -1,10 +1,11 @@
-"""記事を集めて、本文を取る（段階4）。採点・整理記事は段階5・6でつなぐ。
+"""記事を集めて、本文を取り、話題をまとめて、採点・選定する（整理記事は G4 でつなぐ）。
 
 使い方（backend/ で）:
     uv run python -m scripts.collect                  # 全部の情報源で実行
     uv run python -m scripts.collect --dry-run        # DB に書かず、候補と絞り込みだけを確認
     uv run python -m scripts.collect --source openai-news --source simon-willison
     uv run python -m scripts.collect --no-browser     # ブラウザでの取り直しをしない
+    uv run python -m scripts.collect --no-llm         # Haiku を使わない（集めて本文を取るだけ）
 先に表を作っておく（make migrate）。
 """
 
@@ -59,7 +60,27 @@ def _print(summary: CollectSummary, *, dry_run: bool, session: Session) -> None:
             f" 失敗{stat.failed:3} 対象外{stat.skipped:2}  平均{stat.avg_chars:6}字"
             f"  理由: {reasons}"
         )
+    _print_analysis(summary)
     print(f"\n実行 #{summary.run_id}: {summary.status}")
+
+
+def _print_analysis(summary: CollectSummary) -> None:
+    if summary.group is None:
+        print("\n（Haiku を使わない設定のため、話題のまとめ・採点は行っていません）")
+        return
+    g = summary.group
+    print(f"\n=== 話題のまとめ・採点・選定（モデル: {summary.model_id or '未使用'}）===")
+    print(
+        f"話題のまとめ: 新しい話題 {g.new_topics}・既存の話題に追加 {g.joined}"
+        f"・新着どうしでまとめた {g.merged}" + ("（判定に失敗した分あり）" if g.llm_failed else "")
+    )
+    if summary.score is not None:
+        sc = summary.score
+        print(f"採点: {sc.scored} 件・失敗 {sc.failed}・次回に回した {sc.deferred}")
+    print(f"この回の Haiku の費用: ${summary.cost_usd:.4f}")
+    if summary.select is not None:
+        se = summary.select
+        print(f"選定: 選定 {se.selected}・重大ニュース {se.major}・落選 {se.rejected}")
 
 
 def main() -> None:
@@ -68,6 +89,7 @@ def main() -> None:
     parser.add_argument("--since-days", type=int, default=3, help="直近何日分を見るか（既定 3）")
     parser.add_argument("--max-candidates", type=int, help="候補の最大件数（既定は画面の設定）")
     parser.add_argument("--no-browser", action="store_true", help="ブラウザでの取り直しをしない")
+    parser.add_argument("--no-llm", action="store_true", help="Haiku を使わない")
     parser.add_argument("--dry-run", action="store_true", help="DB に書かない")
     args = parser.parse_args()
 
@@ -81,6 +103,7 @@ def main() -> None:
                 since_days=args.since_days,
                 max_candidates=args.max_candidates,
                 use_browser=not args.no_browser,
+                use_llm=not args.no_llm,
                 dry_run=args.dry_run,
             )
         )

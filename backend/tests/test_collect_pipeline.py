@@ -545,6 +545,7 @@ async def collect(session: Session, web: FakeWeb) -> CollectSummary:
         transport=web.transport(),
         resolver=public_resolver,
         use_browser=False,
+        use_llm=False,
     )
 
 
@@ -557,6 +558,7 @@ async def test_end_to_end_run_records_everything(session: Session) -> None:
         transport=web.transport(),
         resolver=public_resolver,
         use_browser=False,
+        use_llm=False,
     )
     assert (summary.discovered, summary.kept, summary.registered) == (3, 1, 1)
     assert summary.fetch.full == 1 and summary.status == "partial"
@@ -591,6 +593,7 @@ async def test_dry_run_writes_nothing(session: Session) -> None:
         transport=web.transport(),
         resolver=public_resolver,
         dry_run=True,
+        use_llm=False,
     )
     assert summary.run_id is None and summary.kept == 1 and summary.registered == 0
     for model in (Run, Article, Source, RunIssue):
@@ -613,6 +616,7 @@ async def test_sources_turned_off_in_the_database_are_skipped(session: Session) 
         transport=web.transport(),
         resolver=public_resolver,
         use_browser=False,
+        use_llm=False,
     )
     assert {line.key for line in summary.sources} == {"bad"}
     assert not any("good.example.com" in call for call in web.calls)
@@ -628,6 +632,7 @@ async def test_only_selected_sources_are_collected(session: Session) -> None:
         transport=web.transport(),
         resolver=public_resolver,
         use_browser=False,
+        use_llm=False,
     )
     assert [line.key for line in summary.sources] == ["good"] and summary.status == "succeeded"
 

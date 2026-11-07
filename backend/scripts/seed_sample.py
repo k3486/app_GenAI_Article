@@ -31,7 +31,6 @@ from app.models import (
 from app.schemas.topics import CriterionKey
 from app.services.app_settings import set_sample_mode
 from app.services.scoring import (
-    DEFAULT_THRESHOLD,
     DEFAULT_WEIGHTS,
     build_breakdown,
     decide_selection,
@@ -48,6 +47,9 @@ _QUERIES = [
     ("AI 規制 施行 企業 対応", "ja", 5),
 ]
 _CRITERIA: tuple[CriterionKey, ...] = ("interest", "practical", "freshness", "trust", "depth")
+
+# 試しのデータの選定の線。本番の既定値（DEFAULT_THRESHOLD）を変えても、画面確認用のデータは変えない
+SAMPLE_THRESHOLD = 60
 
 
 def _run_start(now: datetime, day: int) -> datetime:
@@ -169,7 +171,7 @@ def seed(session: Session, now: datetime | None = None) -> None:
             reason=f"関心{scores['interest']}・新しさ{scores['freshness']}・信頼{scores['trust']}。"
             "（サンプルの理由。実データでは Haiku が1行で書きます）",
         )
-        selection = decide_selection(breakdown, DEFAULT_THRESHOLD)
+        selection = decide_selection(breakdown, SAMPLE_THRESHOLD)
         state = item.state
         topic = Topic(
             id=index,
