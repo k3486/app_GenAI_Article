@@ -27,6 +27,9 @@ class SourceConfig(BaseModel):
     pattern: str | None = None
     language: Literal["ja", "en"] = "en"
     ai_filter: bool = False
+    digest: bool = (
+        False  # 週刊ニュースレターなど、複数の話題の寄せ集め。選定はするが重大ニュースにはしない
+    )
     fetch_body: bool = True  # False: 記事ページを取りに行かず、一覧の概要だけで登録する
     disabled_reason: str | None = None
     options: dict[str, Any] = Field(default_factory=dict)

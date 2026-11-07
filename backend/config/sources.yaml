@@ -70,10 +70,11 @@ sources:
 
   # --- 海外の技術メディア・識者 ---
   - {key: simon-willison, name: Simon Willison, kind: media, fetch: rss, url: "https://simonwillison.net/atom/everything/", ai_filter: true}
-  - {key: latent-space, name: Latent Space, kind: media, fetch: rss, url: "https://latent.space/feed"}
-  - {key: import-ai, name: Import AI, kind: media, fetch: rss, url: "https://importai.substack.com/feed"}
+  - {key: latent-space, name: Latent Space, kind: media, fetch: rss, url: "https://latent.space/feed", digest: true}
+  - {key: import-ai, name: Import AI, kind: media, fetch: rss, url: "https://importai.substack.com/feed", digest: true}
   - key: the-batch
     name: The Batch（DeepLearning.AI）
+    digest: true
     kind: media
     fetch: listing
     url: "https://www.deeplearning.ai/the-batch/"

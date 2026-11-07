@@ -323,6 +323,7 @@ def scored_topic(
     interest: int | None = None,
     freshness: int | None = None,
     fetch_status: str = "full",
+    source: Source | None = None,
 ) -> Topic:
     """5観点を同じ点（level）にした採点済みの話題。level 3→50点、4→75点、5→100点。"""
     topic = Topic(selection="pending", run_id=run.id, created_at=NOW)
@@ -331,6 +332,7 @@ def scored_topic(
     session.add(
         Article(
             topic_id=topic.id,
+            source_id=source.id if source else None,
             domain="sel.example.com",
             url=f"https://sel.example.com/{n}",
             url_normalized=f"https://sel.example.com/{n}",
@@ -413,6 +415,23 @@ def test_summary_only_topic_is_never_major_but_can_still_be_selected(session: Se
     assert summary_big.selection == "rejected"
     assert summary_high.selection == "selected"
     assert full_big.selection == "major"
+
+
+def test_digest_source_is_never_major_but_can_still_be_selected(session: Session) -> None:
+    """週刊ニュースレター（digest: true の情報源）は寄せ集めなので、重大ニュースにしない。"""
+    run = make_run(session)
+    batch = make_source(session, "the-batch")  # sources.yaml で digest: true
+    news = make_source(session, "simon-willison")
+    digest_big = scored_topic(session, run, 1, level=3, freshness=5, source=batch)
+    digest_high = scored_topic(session, run, 2, level=5, source=batch)
+    news_big = scored_topic(session, run, 3, level=3, freshness=5, source=news)
+    settings = settings_with(session, max_selected=10, max_major=3)
+    select_scored(session, run=run, settings=settings, now=NOW)
+    for t in (digest_big, digest_high, news_big):
+        session.refresh(t)
+    assert digest_big.selection == "rejected"
+    assert digest_high.selection == "selected"
+    assert news_big.selection == "major"
 
 
 def test_low_interest_never_enters_the_normal_selection_but_can_be_major(

@@ -10,8 +10,9 @@ from datetime import datetime
 
 from sqlmodel import Session, col, select
 
-from app.models import Article, Run, Score, Topic
+from app.models import Article, Run, Score, Source, Topic
 from app.schemas.settings import Settings
+from app.services.collect.source_config import load_sources
 from app.services.scoring import (
     MAJOR_FRESHNESS,
     OFFICIAL_BONUS,
@@ -47,14 +48,14 @@ def _refresh_total(score: Score) -> None:
 def _decide_group(
     rows: list[tuple[Topic, Score]],
     settings: Settings,
-    summary_only: set[int | None] | None = None,
+    no_major: set[int | None] | None = None,
 ) -> tuple[set[int | None], set[int | None]]:
     """1回の更新で採点された話題から、選定と重大ニュースの話題 ID を決める。
 
-    summary_only: 全文を持つ記事が1件もない話題。概要だけの採点は信頼できないので、
-    しきい値を超えれば選定するが、重大ニュースにはしない。
+    no_major: 重大ニュースにしない話題。全文を持つ記事が1件もない話題（概要だけの採点は
+    信頼できない）と、週刊ニュースレターなどの寄せ集め（digest）。しきい値を超えれば選定はする。
     """
-    summary_only = summary_only or set()
+    no_major = no_major or set()
     decided: dict[str, list[tuple[Topic, Score]]] = {"selected": [], "major": [], "rejected": []}
     for topic, score in rows:
         breakdown = build_breakdown(
@@ -71,7 +72,7 @@ def _decide_group(
             reason=score.reason,
         )
         verdict = decide_selection(breakdown, settings.threshold)
-        if verdict == "major" and topic.id in summary_only:
+        if verdict == "major" and topic.id in no_major:
             verdict = "rejected"
         decided[verdict].append((topic, score))
 
@@ -83,11 +84,7 @@ def _decide_group(
     overflow = ranked[settings.max_selected :]
     major_pool = best_first(
         decided["major"]
-        + [
-            r
-            for r in overflow
-            if r[1].freshness >= MAJOR_FRESHNESS and r[0].id not in summary_only
-        ]
+        + [r for r in overflow if r[1].freshness >= MAJOR_FRESHNESS and r[0].id not in no_major]
     )
     majors = major_pool[: settings.max_major]
     return {t.id for t, _ in chosen}, {t.id for t, _ in majors}
@@ -132,9 +129,21 @@ def select_scored(
             )
         ).all()
     )
-    summary_only = {t.id for t, _ in rows if t.id not in with_full_text}
+    digest_keys = {s.key for s in load_sources().sources if s.digest}
+    digest_topics = set(
+        session.exec(
+            select(Article.topic_id)
+            .join(Source, col(Source.id) == col(Article.source_id))
+            .where(
+                col(Article.topic_id).in_([t.id for t, _ in rows]),
+                col(Article.role) == "representative",
+                col(Source.key).in_(digest_keys),
+            )
+        ).all()
+    )
+    no_major = {t.id for t, _ in rows if t.id not in with_full_text} | digest_topics
     for group in by_run.values():
-        chosen, majors = _decide_group(group, settings, summary_only)
+        chosen, majors = _decide_group(group, settings, no_major)
         chosen_ids |= chosen
         major_ids |= majors
 
