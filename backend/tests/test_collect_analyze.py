@@ -322,11 +322,25 @@ def scored_topic(
     level: int,
     interest: int | None = None,
     freshness: int | None = None,
+    fetch_status: str = "full",
 ) -> Topic:
     """5観点を同じ点（level）にした採点済みの話題。level 3→50点、4→75点、5→100点。"""
     topic = Topic(selection="pending", run_id=run.id, created_at=NOW)
     session.add(topic)
     session.flush()
+    session.add(
+        Article(
+            topic_id=topic.id,
+            domain="sel.example.com",
+            url=f"https://sel.example.com/{n}",
+            url_normalized=f"https://sel.example.com/{n}",
+            title_original=f"Title {n}",
+            published_at=NOW,
+            stage="scored",
+            fetch_status=fetch_status,
+            summary="summary",
+        )
+    )
     session.add(
         Score(
             topic_id=topic.id or 0,
@@ -384,6 +398,21 @@ def test_overflow_with_top_freshness_becomes_major(session: Session) -> None:
         session.refresh(t)
     assert (best.selection, fresh.selection, plain.selection) == ("selected", "major", "rejected")
     assert (report.selected, report.major, report.rejected) == (1, 1, 1)
+
+
+def test_summary_only_topic_is_never_major_but_can_still_be_selected(session: Session) -> None:
+    """概要だけの採点は信頼できない。重大ニュースにはしない（しきい値を超えれば選定はする）。"""
+    run = make_run(session)
+    summary_big = scored_topic(session, run, 1, level=3, freshness=5, fetch_status="partial")
+    summary_high = scored_topic(session, run, 2, level=5, fetch_status="partial")
+    full_big = scored_topic(session, run, 3, level=3, freshness=5)
+    settings = settings_with(session, max_selected=10, max_major=3)
+    select_scored(session, run=run, settings=settings, now=NOW)
+    for t in (summary_big, summary_high, full_big):
+        session.refresh(t)
+    assert summary_big.selection == "rejected"
+    assert summary_high.selection == "selected"
+    assert full_big.selection == "major"
 
 
 def test_low_interest_never_enters_the_normal_selection_but_can_be_major(

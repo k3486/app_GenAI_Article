@@ -26,6 +26,7 @@ _REASON = {
     "language": "言語",
     "over_cap": "件数の上限",
     "duplicate": "重複",
+    "excluded": "告知・一覧",
 }
 
 

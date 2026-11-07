@@ -23,7 +23,9 @@ fetch:
 
 sources:
   # --- AI企業の公式 ---
-  - {key: openai-news, name: OpenAI News, kind: official, fetch: rss, url: "https://openai.com/news/rss.xml"}
+  # OpenAI の記事ページは確認画面（Cloudflare）で本文を取れない。取りに行かず、概要だけで登録する
+  # （同じ話題の他媒体の記事があれば、その本文を採点の材料にする）
+  - {key: openai-news, name: OpenAI News, kind: official, fetch: rss, url: "https://openai.com/news/rss.xml", fetch_body: false}
   - key: anthropic-news
     name: Anthropic News
     kind: official

@@ -10,7 +10,7 @@ from datetime import datetime
 
 from sqlmodel import Session, col, select
 
-from app.models import Run, Score, Topic
+from app.models import Article, Run, Score, Topic
 from app.schemas.settings import Settings
 from app.services.scoring import (
     MAJOR_FRESHNESS,
@@ -45,9 +45,16 @@ def _refresh_total(score: Score) -> None:
 
 
 def _decide_group(
-    rows: list[tuple[Topic, Score]], settings: Settings
+    rows: list[tuple[Topic, Score]],
+    settings: Settings,
+    summary_only: set[int | None] | None = None,
 ) -> tuple[set[int | None], set[int | None]]:
-    """1回の更新で採点された話題から、選定と重大ニュースの話題 ID を決める。"""
+    """1回の更新で採点された話題から、選定と重大ニュースの話題 ID を決める。
+
+    summary_only: 全文を持つ記事が1件もない話題。概要だけの採点は信頼できないので、
+    しきい値を超えれば選定するが、重大ニュースにはしない。
+    """
+    summary_only = summary_only or set()
     decided: dict[str, list[tuple[Topic, Score]]] = {"selected": [], "major": [], "rejected": []}
     for topic, score in rows:
         breakdown = build_breakdown(
@@ -63,7 +70,10 @@ def _decide_group(
             official=score.official_bonus > 0,
             reason=score.reason,
         )
-        decided[decide_selection(breakdown, settings.threshold)].append((topic, score))
+        verdict = decide_selection(breakdown, settings.threshold)
+        if verdict == "major" and topic.id in summary_only:
+            verdict = "rejected"
+        decided[verdict].append((topic, score))
 
     def best_first(items: list[tuple[Topic, Score]]) -> list[tuple[Topic, Score]]:
         return sorted(items, key=lambda r: (-r[1].total, -r[1].freshness, r[0].id or 0))
@@ -72,7 +82,12 @@ def _decide_group(
     chosen = ranked[: settings.max_selected]
     overflow = ranked[settings.max_selected :]
     major_pool = best_first(
-        decided["major"] + [r for r in overflow if r[1].freshness >= MAJOR_FRESHNESS]
+        decided["major"]
+        + [
+            r
+            for r in overflow
+            if r[1].freshness >= MAJOR_FRESHNESS and r[0].id not in summary_only
+        ]
     )
     majors = major_pool[: settings.max_major]
     return {t.id for t, _ in chosen}, {t.id for t, _ in majors}
@@ -109,8 +124,17 @@ def select_scored(
         by_run.setdefault(score.run_id, []).append((topic, score))
     chosen_ids: set[int | None] = set()
     major_ids: set[int | None] = set()
+    with_full_text = set(
+        session.exec(
+            select(Article.topic_id).where(
+                col(Article.topic_id).in_([t.id for t, _ in rows]),
+                col(Article.fetch_status) == "full",
+            )
+        ).all()
+    )
+    summary_only = {t.id for t, _ in rows if t.id not in with_full_text}
     for group in by_run.values():
-        chosen, majors = _decide_group(group, settings)
+        chosen, majors = _decide_group(group, settings, summary_only)
         chosen_ids |= chosen
         major_ids |= majors
 

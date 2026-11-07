@@ -1,5 +1,7 @@
 """情報源の設定（config/sources.yaml）の読み込みと、DB の sources 表との同期。"""
 
+import re
+from functools import cache
 from pathlib import Path
 from typing import Any, Literal, Self
 
@@ -25,6 +27,7 @@ class SourceConfig(BaseModel):
     pattern: str | None = None
     language: Literal["ja", "en"] = "en"
     ai_filter: bool = False
+    fetch_body: bool = True  # False: 記事ページを取りに行かず、一覧の概要だけで登録する
     disabled_reason: str | None = None
     options: dict[str, Any] = Field(default_factory=dict)
 
@@ -65,6 +68,19 @@ def load_sources(path: Path = SOURCES_PATH) -> SourcesFile:
 def load_ai_keywords(path: Path = SCORING_PATH) -> list[str]:
     data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     return [str(word) for word in data.get("ai_keywords", [])]
+
+
+@cache
+def _exclude_pattern() -> re.Pattern[str] | None:
+    data = yaml.safe_load(SCORING_PATH.read_text(encoding="utf-8")) or {}
+    patterns = [str(p) for p in data.get("exclude_titles", [])]
+    return re.compile("|".join(f"(?:{p})" for p in patterns), re.IGNORECASE) if patterns else None
+
+
+def is_excluded_title(title: str) -> bool:
+    """募集・公募の告知や一覧ページなど、記事として集めないタイトルか。"""
+    pattern = _exclude_pattern()
+    return bool(title and pattern and pattern.search(title.strip()))
 
 
 def sync_sources(session: Session, config: SourcesFile) -> dict[str, Source]:

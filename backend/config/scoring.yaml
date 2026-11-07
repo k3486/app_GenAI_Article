@@ -1,5 +1,17 @@
 # 採点まわりの設定（基準の文章は段階5でここに足す）。
 
+# 募集・公募の告知や、一覧ページは、記事ではないので集めない（タイトルがこの正規表現に当たるものを除く。大文字小文字は区別しない）。
+# 一覧・カテゴリのページは、取得後のページの見出しでも検査する（サイトマップ・一覧ページから拾った候補は、取得するまで見出しが分からない）。
+exclude_titles:
+  - '\bopen call\b'
+  - '\bcall for (applications?|proposals?|papers?|participants?|nominations?)\b'
+  - "\\b(we are|we're|we’re) hiring\\b"
+  - '\bnow hiring\b'
+  - '\bapply now\b'
+  - 募集
+  - 公募
+  - '一覧\s*$'
+
 # AI 以外の記事も多い情報源（ai_filter: true）は、タイトルか概要にこの語を含む記事だけ通す。
 # 英字だけで4文字以下の語は、単語として一致したときだけ数える（"AI" が "said" に当たらないように）。
 ai_keywords:

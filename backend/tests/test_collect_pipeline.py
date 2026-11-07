@@ -15,7 +15,12 @@ from app.services.collect.pipeline import (
     register_candidates,
 )
 from app.services.collect.run import CollectSummary, run_collection
-from app.services.collect.source_config import SourceConfig, SourcesFile, sync_sources
+from app.services.collect.source_config import (
+    SourceConfig,
+    SourcesFile,
+    is_excluded_title,
+    sync_sources,
+)
 from tests.helpers import (
     EN_SENTENCES,
     JA_SENTENCES,
@@ -162,6 +167,79 @@ def test_filter_does_not_drop_when_language_cannot_be_told(session: Session) -> 
 
 
 # --- 登録 ---------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("title", "excluded"),
+    [
+        ("Open call for guest investigators in the life sciences", True),
+        ("Call for Papers: Agents workshop", True),
+        ("We're hiring research engineers", True),
+        ("研究者を募集します", True),
+        ("Anthropic特集記事一覧", True),
+        ("AI関連の一覧表を作る方法と注意点", False),  # 末尾が「一覧」ではない
+        ("Introducing a new model with open weights", False),
+        ("OpenAI valued at $1.25 trillion", False),
+        ("", False),
+    ],
+)
+def test_announcements_and_listing_titles_are_excluded(title: str, excluded: bool) -> None:
+    assert is_excluded_title(title) is excluded
+
+
+def test_filter_drops_excluded_titles(session: Session) -> None:
+    results = [
+        SourceResult(
+            cfg("a"),
+            [
+                cand("https://a.example.com/ok"),
+                cand("https://a.example.com/x", title="公募のお知らせ"),
+            ],
+        )
+    ]
+    outcome = filter_candidates(
+        session, results, since=SINCE, max_candidates=10, keywords=KEYWORDS
+    )
+    assert [c.url for c in outcome.kept] == ["https://a.example.com/ok"]
+
+
+async def test_page_title_is_checked_after_fetch_for_untitled_candidates(
+    session: Session,
+) -> None:
+    """サイトマップ・一覧ページ由来の候補は、取得するまで見出しが分からない。"""
+    article = add_article(session, "https://site.example.com/call")
+    await run_fetch(
+        session, web_for(("call", article_html(title="Open call for guest investigators")))
+    )
+    session.refresh(article)
+    assert article.stage == "skipped" and article.fetch_error == "excluded"
+
+
+def test_source_without_body_fetch_is_registered_from_the_summary_only(session: Session) -> None:
+    config = SourcesFile(sources=[cfg("oa", kind="official", fetch_body=False)])
+    sources = sync_sources(session, config)
+    kept = [
+        cand("https://oa.example.com/long", "oa", summary=LONG_SUMMARY),
+        cand("https://oa.example.com/short", "oa", summary="too short"),
+    ]
+    run = Run(trigger="manual")
+    session.add(run)
+    session.commit()
+    register_candidates(
+        session,
+        kept,
+        sources=sources,
+        configs={s.key: s for s in config.sources},
+        run_id=run.id or 0,
+        now=NOW,
+    )
+    rows = {a.url: a for a in session.exec(select(Article)).all()}
+    long = rows["https://oa.example.com/long"]
+    assert (long.stage, long.fetch_status) == ("fetched", "partial")
+    text = session.get(ArticleText, long.id)
+    assert text is not None and text.body == LONG_SUMMARY
+    short = rows["https://oa.example.com/short"]
+    assert (short.stage, short.fetch_status) == ("skipped", "failed")  # 再試行しない
 
 
 def test_register_marks_estimated_dates_and_paper_keys(session: Session) -> None:

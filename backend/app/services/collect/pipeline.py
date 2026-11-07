@@ -31,7 +31,7 @@ from app.services.collect.extract import (
     paper_sections,
 )
 from app.services.collect.fetcher import Fetcher, FetchError
-from app.services.collect.source_config import SourceConfig
+from app.services.collect.source_config import SourceConfig, is_excluded_title
 from app.services.collect.urls import normalize_url
 
 MAX_FETCH_ATTEMPTS = 3
@@ -104,6 +104,9 @@ def filter_candidates(
             if candidate.published_at is not None and candidate.published_at < since:
                 outcome.drop(key, "old")
                 continue
+            if is_excluded_title(candidate.title):
+                outcome.drop(key, "excluded")
+                continue
             text = f"{candidate.title} {candidate.summary}"
             if result.source.ai_filter and not keyword_pattern.search(text):
                 outcome.drop(key, "not_ai")
@@ -175,8 +178,23 @@ def register_candidates(
         session.flush()
         assert article.id is not None
         ids.append(article.id)
+        if not config.fetch_body:
+            _register_summary_only(session, article, now)
     session.commit()
     return ids
+
+
+def _register_summary_only(session: Session, article: Article, now: datetime) -> None:
+    """記事ページを取りに行かない情報源。概要を本文の代わりにして、取得済みにする。"""
+    if len(article.summary) >= _SUMMARY_MIN_CHARS:
+        outcome = FetchOutcome(status="partial", body=article.summary)
+        _apply(session, article, outcome, now)
+        return
+    # 概要が短すぎて採点できない。取りに行く情報源ではないので、再試行の対象にもしない
+    article.fetch_status = "failed"
+    article.fetch_error = "no_summary"
+    article.stage = "skipped"
+    session.add(article)
 
 
 # --- 本文の取得 ---------------------------------------------------------------
@@ -320,6 +338,11 @@ def _apply(session: Session, article: Article, outcome: FetchOutcome, now: datet
     article.fetch_error = outcome.error
     article.fetch_status = outcome.status
     if outcome.status == "failed":
+        session.add(article)
+        return
+    if is_excluded_title(outcome.title) or is_excluded_title(article.title_original):
+        article.stage = "skipped"
+        article.fetch_error = "excluded"
         session.add(article)
         return
 
