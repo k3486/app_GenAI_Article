@@ -4,7 +4,7 @@
 - [x] プロジェクト名を `ai-news-dashboard` に決定し、`scripts/init_project.sh` を実行（2026-11-07）
 - [x] ideas の案を「採用」に更新
 - [x] `.steering/20261107-local-dashboard/` に requirements / design / tasklist を作成
-- [ ] `.env.example` に `ANTHROPIC_API_KEY=`（Haiku 用）を追記 ※権限設定で私は読み書きできない。上司が追記する（`BRAVE_API_KEY` は既に載っている報告）。本物のキーは `../.secrets/.env` に上司が入れ、その後コンテナの再起動が必要。G2 の前までに
+- [x] `.env.example` に `ANTHROPIC_API_KEY=`（Haiku 用）を追記（上司が実施。キーはコンテナに届いている）
 - [x] 初期化後の確認: `make setup && make lint && make test`（lint・型チェック・テストすべて通過。backend 9件・frontend 1件）
 - [x] 興味プロファイルの叩き台を上司が承認 → `backend/config/interest_profile.default.md`（初期値。アプリ起動時に DB へ登録し、以降は画面から直す）
 - [ ] Playwright 用ブラウザの導入（収集の段階で必要になった時点でよい）
@@ -26,8 +26,8 @@
 - [x] 4. 収集のコード（2026-11-07）: `config/sources.yaml`（29件・使えるのは26件。RSS／サイトマップ／一覧／Zenn／Qiita／HF を実際に取得して確認済み）、`config/scoring.yaml`（AI 関連語）、`app/services/collect/`（urls・fetcher・extract・browser・collectors・pipeline・run・source_config）、`scripts/collect.py`、移行 `0002`（記事に summary・fetch_error）。テスト backend 178件・lint・型チェック通過
 - [x] 4. 収集の実地確認（2026-11-07 実施。試しのデータは消去済み・バックアップ有）: 候補3,366→通過186→全文172・概要のみ10（OpenAI News 全件 HTTP 403）・失敗2・対象外2。ブラウザ取り直しは0回（未検証のまま）。結果は G2 で報告
 - [x] G2 の事後作業（2026-11-07）: 候補の上限の既定を 80→200（`app_settings.py`・DB の保存値も更新）、`make collect` を追加、`docs/` に収集の仕様を反映、`backend/CLAUDE.md` の Alembic 記述を修正。`make lint`・pytest 178件・Vitest 8件 通過
-- [ ] **G2: 本文の取得率と取れなかったサイトを確認（Haiku を使う前）** ※資料は決定事項に記載済み。上司の最終了承待ち
-- [ ] `ANTHROPIC_API_KEY` がコンテナに届かない件の原因調査（env-file はコンテナ作成時のみ読込。Rebuild 未実施／書式／変数名の疑い。上司の端末での確認待ち）
+- [x] **G2 確定**（2026-11-07 上司「G2を確定」）。決定事項: Brave Search は使わない／候補上限の既定は 200／OpenAI News は他媒体の本文で補う
+- [x] `ANTHROPIC_API_KEY` がコンテナに届かない件は解決（2026-11-07 届いていることを確認。`claude-haiku-5-5` への疎通 HTTP 200）。`.env.example` への追記も完了
 
 ## 5. Haiku の処理 → G3 → G4
 - [ ] LLM の口（最新 Haiku の選択・費用の記録・上限）、スキルの読み込み
@@ -41,6 +41,10 @@
 - [ ] `docs/spec.md`・`docs/architecture.md` の更新、`history.md` に追記
 
 ## 次にやること
+**G2 確定済み。次は「5. Haiku の処理」**（LLM の口：最新 Haiku の選択・費用の記録・上限 → スキルの読み込み → 採点・話題の判定）。下の 1〜5 は G2 までの記録（完了済み）。
+補足: `make setup` の `npm ci` は 9p のフォルダで ENOTEMPTY になることがある。再実行で通る。
+
+（以下は G2 までの記録）
 1. **本番の収集を1回実行して、G2 の資料を作る**: `cd backend && uv run python -m scripts.collect --max-candidates 200`（約1〜3分。DB に書く）。出力の「本文の取得結果（情報源ごと）」を表にして上司に見せる（全文／概要のみ／失敗・平均文字数・失敗の理由）。取れなかったサイトの原因（robots・JS 描画・有料・タイムアウト）を分類する。実行前に、試しのデータをどうするか決める（`make`の seed が入っている。本物の記事と混ぜないなら `uv run python -m scripts.seed_sample --clear`）
 2. ブラウザでの取り直し（Playwright＋`/usr/bin/google-chrome`）は、実サイトでは**未確認**。1 の実行で `ブラウザで取り直し N` が出るか見る。起動できなければ `browser_unavailable` と出る
 3. 1 の結果で、`config/sources.yaml` を直す（取れないサイトは `disabled_reason` を付ける）
