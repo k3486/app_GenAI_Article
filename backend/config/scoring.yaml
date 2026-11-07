@@ -1,0 +1,38 @@
+# 採点まわりの設定（基準の文章は段階5でここに足す）。
+
+# AI 以外の記事も多い情報源（ai_filter: true）は、タイトルか概要にこの語を含む記事だけ通す。
+# 英字だけで4文字以下の語は、単語として一致したときだけ数える（"AI" が "said" に当たらないように）。
+ai_keywords:
+  - AI
+  - LLM
+  - GPT
+  - RAG
+  - MCP
+  - ChatGPT
+  - Claude
+  - Gemini
+  - Copilot
+  - OpenAI
+  - Anthropic
+  - DeepSeek
+  - Llama
+  - Mistral
+  - Cursor
+  - generative
+  - language model
+  - machine learning
+  - deep learning
+  - neural
+  - agent
+  - prompt
+  - fine-tun
+  - 生成AI
+  - 生成ＡＩ
+  - 人工知能
+  - 機械学習
+  - 深層学習
+  - 大規模言語モデル
+  - エージェント
+  - プロンプト
+  - ファインチューニング
+  - 推論モデル

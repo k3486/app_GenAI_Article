@@ -1,4 +1,4 @@
-# app-template
+# ai-news-dashboard
 
 個人用 Web アプリの標準テンプレート。FastAPI（Python）＋ React（TypeScript）＋ SQLite。
 Claude Code で開発する前提の設定（CLAUDE.md・スキル・MCP・hook）を含む。
@@ -9,23 +9,12 @@ Claude Code で開発する前提の設定（CLAUDE.md・スキル・MCP・hook�
 | frontend | Vite, React 19, TypeScript, Tailwind CSS v4, shadcn/ui, oxlint, Prettier, Vitest |
 | 開発環境 | Dev Container（Python 3.12 / Node 26 / Claude Code） |
 
-<!-- TEMPLATE-ONLY:START -->
-## このテンプレートから新しいアプリを作る
-1. GitHub で「Use this template」→ 新リポジトリを作成（非公開でよい）
-2. `/workspaces/Project/<新しい名前>/` に clone（**app-template の隣に置く**。`../.secrets` を共用するため）
-   - clone すると push 先（remote `origin`）は自動で設定される
-   - GitHub を通さずフォルダをコピーした場合は、GitHub にリポジトリを作ってから
-     `git remote add origin https://github.com/<ユーザー>/<新しい名前>.git` が必要
-3. `./scripts/init_project.sh <新しい名前>`（kebab-case）
-   - 名前を置換し、`.steering/` `ideas/` のテンプレート自身の記録を空にして、このスクリプトを削除する
-4. 下の「セットアップ」へ
-<!-- TEMPLATE-ONLY:END -->
 
 ## フォルダの置き方（WSL）
 ```
 <作業フォルダ>/            例: /workspaces/Project（WSL 内のパス。/mnt/c 配下は不可）
 ├── .secrets/.env          APIキー（全リポジトリ共通・git 管理外）
-├── app-template/
+├── ai-news-dashboard/
 └── <アプリ>/
 ```
 

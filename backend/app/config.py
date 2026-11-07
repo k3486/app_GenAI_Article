@@ -16,7 +16,7 @@ LLMProvider = Literal["anthropic", "openai"]
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="", extra="ignore")
 
-    app_name: str = "app-template"
+    app_name: str = "ai-news-dashboard"
     database_url: str = f"sqlite:///{REPO_ROOT / 'data' / 'app.db'}"
     # LLM の API キー。どちらか一方だけ設定されていればよい（空・空白だけは未設定とみなす）
     anthropic_api_key: SecretStr | None = None

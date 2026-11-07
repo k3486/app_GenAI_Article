@@ -1,21 +1,29 @@
 [project]
-name = "app-template"
+name = "ai-news-dashboard"
 version = "0.1.0"
-description = "app-template backend (FastAPI)"
+description = "ai-news-dashboard backend (FastAPI)"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "alembic>=1.20.1",
     "fastapi>=0.162.0",
+    "feedparser>=6.0.14",
+    "httpx2>=2.16.0",
+    "playwright>=1.64.1",
     "pydantic-settings>=2.16.2",
+    "pypdf>=7.0.0",
+    "pyyaml>=6.0.3",
     "sqlmodel>=0.0.48",
+    "trafilatura>=2.3.1",
     "uvicorn[standard]>=0.54.0",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx2>=2.16.0",
     "mypy>=2.4.1",
     "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1.post1",
     "ruff>=0.17.3",
+    "types-pyyaml>=6.0.12.20261103",
 ]
 
 [tool.uv]
@@ -24,6 +32,8 @@ package = false
 [tool.ruff]
 line-length = 99
 target-version = "py312"
+# Alembic が自動生成する移行ファイルは、書式の検査から外す
+extend-exclude = ["alembic/versions"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "B", "UP", "SIM"]
@@ -33,5 +43,12 @@ python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
 
+# 型の情報（スタブ）を持たない外部ライブラリ
+[[tool.mypy.overrides]]
+module = ["feedparser.*", "trafilatura.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

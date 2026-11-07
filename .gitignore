@@ -18,6 +18,8 @@ dist/
 
 # data（SQLite 本体と -wal / -shm）
 data/*.db*
+data/openapi.json
+data/backups/
 
 # editor / os
 .DS_Store

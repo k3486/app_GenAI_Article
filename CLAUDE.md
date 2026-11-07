@@ -1,4 +1,4 @@
-# app-template
+# ai-news-dashboard
 
 FastAPI（backend/）＋ React（frontend/）＋ SQLite の個人用 Web アプリ。
 

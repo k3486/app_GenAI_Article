@@ -5,19 +5,32 @@ from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine
 
-from app.db import get_session
+import app.models  # noqa: F401  すべての表を登録する
+from app.db import configure_sqlite, get_session
 from app.main import create_app
+from app.services.search import create_search_index
+from scripts.seed_sample import seed
 
 
 @pytest.fixture
 def session() -> Iterator[Session]:
-    """テストごとに新しいメモリ上の SQLite を使う。"""
+    """テストごとに新しいメモリ上の SQLite を使う（本番と同じ設定・全文検索の表つき）。"""
     engine = create_engine(
         "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
     )
+    configure_sqlite(engine)
     SQLModel.metadata.create_all(engine)
+    with engine.begin() as connection:
+        create_search_index(connection)
     with Session(engine) as session:
         yield session
+
+
+@pytest.fixture
+def seeded(session: Session) -> Session:
+    """試しのデータ（scripts/seed_sample.py）を入れた DB。"""
+    seed(session)
+    return session
 
 
 @pytest.fixture

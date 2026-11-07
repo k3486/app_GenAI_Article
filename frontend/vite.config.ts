@@ -14,6 +14,8 @@ export default defineConfig({
     port: 5173,
     // /api はバックエンド(FastAPI)へ転送。同一オリジンになるので CORS 不要
     proxy: { '/api': 'http://localhost:8000' },
+    // Windows 側のフォルダ（9p）では、ファイルの変更が通知されない。定期的に確認して画面に反映する
+    watch: { usePolling: true, interval: 300 },
   },
   test: {
     environment: 'jsdom',

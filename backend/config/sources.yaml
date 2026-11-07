@@ -1,0 +1,111 @@
+# 情報源の一覧（正）。追加・削除はこのファイルで行い、画面では「使う／使わない」だけ切り替える。
+#
+# fetch の種類:
+#   rss      RSS / Atom を読む                    url
+#   sitemap  サイトマップ（更新日つき）から拾う    url, pattern（記事 URL の正規表現）
+#   listing  一覧ページのリンクから拾う            url, pattern（日付は記事ページから読む）
+#   zenn     Zenn の API（いいね数の上位）          options.topics, options.top
+#   qiita    Qiita の API（いいね数の上位）         options.tags, options.top
+#   hf_papers  Hugging Face Daily Papers（投票数の上位）  options.top（1日あたり）
+#
+# kind: official（公式。採点で +10 点）/ media / paper
+# ai_filter: true なら、タイトルか概要に生成AI関連の語（scoring.yaml）を含む記事だけ通す
+# disabled_reason: 書いてあれば、取得できないので使わない（理由を残す）
+#
+# 確認日: 2026-11-07（RSS・サイトマップ・API は実際に取得して確かめた）
+
+fetch:
+  # 同じサイトへの取得の最小間隔（秒）。arXiv は規約で「3秒に1回・同時接続1つ」
+  min_interval_seconds:
+    default: 1.0
+    arxiv.org: 3.0
+    export.arxiv.org: 3.0
+
+sources:
+  # --- AI企業の公式 ---
+  - {key: openai-news, name: OpenAI News, kind: official, fetch: rss, url: "https://openai.com/news/rss.xml"}
+  - key: anthropic-news
+    name: Anthropic News
+    kind: official
+    fetch: sitemap
+    url: "https://www.anthropic.com/sitemap.xml"
+    pattern: '^https://www\.anthropic\.com/news/[a-z0-9-]+$'
+  - key: anthropic-research
+    name: Anthropic Research
+    kind: official
+    fetch: sitemap
+    url: "https://www.anthropic.com/sitemap.xml"
+    pattern: '^https://www\.anthropic\.com/research/[a-z0-9-]+$'
+  - key: anthropic-engineering
+    name: Anthropic Engineering
+    kind: official
+    fetch: listing
+    url: "https://www.anthropic.com/engineering"
+    pattern: '^https://www\.anthropic\.com/engineering/[a-z0-9-]+$'
+    disabled_reason: 一覧が JavaScript で描画され、サイトマップにも無い（ブラウザでの一覧取得が必要）
+  - key: claude-blog
+    name: Claude Blog
+    kind: official
+    fetch: listing
+    url: "https://claude.com/blog"
+    pattern: '^https://claude\.com/blog/[a-z0-9-]+$'
+    disabled_reason: 一覧が JavaScript で描画され、サイトマップにも無い（ブラウザでの一覧取得が必要）
+  - {key: google-deepmind, name: Google DeepMind, kind: official, fetch: rss, url: "https://deepmind.google/blog/rss.xml"}
+  - {key: google-research, name: Google Research, kind: official, fetch: rss, url: "https://research.google/blog/rss/"}
+  - {key: google-developers, name: Google Developers Blog, kind: official, fetch: rss, url: "https://developers.googleblog.com/feeds/posts/default", ai_filter: true}
+  - key: meta-ai
+    name: Meta AI
+    kind: official
+    fetch: listing
+    url: "https://ai.meta.com/blog/"
+    pattern: '^https://ai\.meta\.com/blog/[a-z0-9-]+/?$'
+  - {key: microsoft-research, name: Microsoft Research, kind: official, fetch: rss, url: "https://www.microsoft.com/en-us/research/feed/", ai_filter: true}
+  - {key: aws-ml-blog, name: AWS Machine Learning Blog, kind: official, fetch: rss, url: "https://aws.amazon.com/blogs/machine-learning/feed/"}
+  - {key: huggingface-blog, name: Hugging Face Blog, kind: official, fetch: rss, url: "https://huggingface.co/blog/feed.xml"}
+  - {key: mistral-news, name: Mistral, kind: official, fetch: rss, url: "https://mistral.ai/news/rss"}
+  - {key: github-copilot, name: GitHub Blog（Copilot）, kind: official, fetch: rss, url: "https://github.blog/ai-and-ml/github-copilot/feed/"}
+
+  # --- 海外の技術メディア・識者 ---
+  - {key: simon-willison, name: Simon Willison, kind: media, fetch: rss, url: "https://simonwillison.net/atom/everything/", ai_filter: true}
+  - {key: latent-space, name: Latent Space, kind: media, fetch: rss, url: "https://latent.space/feed"}
+  - {key: import-ai, name: Import AI, kind: media, fetch: rss, url: "https://importai.substack.com/feed"}
+  - key: the-batch
+    name: The Batch（DeepLearning.AI）
+    kind: media
+    fetch: listing
+    url: "https://www.deeplearning.ai/the-batch/"
+    pattern: '^https://www\.deeplearning\.ai/the-batch/(?!about|tag/|subscribe)[a-z0-9-]+/?$'
+  - {key: techcrunch-ai, name: TechCrunch AI, kind: media, fetch: rss, url: "https://techcrunch.com/category/artificial-intelligence/feed/"}
+  - {key: the-verge-ai, name: The Verge AI, kind: media, fetch: rss, url: "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"}
+  - {key: mit-tech-review-ai, name: MIT Technology Review AI, kind: media, fetch: rss, url: "https://www.technologyreview.com/topic/artificial-intelligence/feed"}
+  - key: venturebeat-ai
+    name: VentureBeat AI
+    kind: media
+    fetch: rss
+    url: "https://venturebeat.com/category/ai/feed/"
+    disabled_reason: ボット制限で 429 が返る（2026-11-07 時点）
+  - {key: ars-technica-ai, name: Ars Technica AI, kind: media, fetch: rss, url: "https://arstechnica.com/ai/feed/"}
+
+  # --- 国内メディア ---
+  - {key: itmedia-ai, name: ITmedia AI+, kind: media, fetch: rss, url: "https://rss.itmedia.co.jp/rss/2.0/aiplus.xml", language: ja}
+  - {key: publickey, name: Publickey, kind: media, fetch: rss, url: "https://www.publickey1.jp/atom.xml", language: ja, ai_filter: true}
+  - {key: developersio, name: DevelopersIO（生成AI）, kind: media, fetch: rss, url: "https://dev.classmethod.jp/tags/generative-ai/feed/", language: ja}
+  - key: zenn
+    name: Zenn
+    kind: media
+    fetch: zenn
+    language: ja
+    options: {topics: [llm, claude, aiagent, mcp], top: 10}
+  - key: qiita
+    name: Qiita
+    kind: media
+    fetch: qiita
+    language: ja
+    options: {tags: [LLM, 生成AI, ClaudeCode, MCP], top: 10}
+
+  # --- 論文 ---
+  - key: hf-papers
+    name: Hugging Face Daily Papers
+    kind: paper
+    fetch: hf_papers
+    options: {top: 5}

@@ -1,40 +1,45 @@
-import { useEffect, useState } from 'react'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { useState } from 'react'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { apiGet } from '@/lib/api'
+import { AppShell } from '@/components/AppShell'
+import { TooltipProvider } from '@/components/ui/tooltip'
+import { ArticlesPage } from '@/features/articles/ArticlesPage'
+import { BacklogPage } from '@/features/backlog/BacklogPage'
+import { FavoritesPage } from '@/features/favorites/FavoritesPage'
+import { InsightsPage } from '@/features/insights/InsightsPage'
+import { RejectedPage } from '@/features/rejected/RejectedPage'
+import { SettingsPage } from '@/features/settings/SettingsPage'
+import { LatestPage } from '@/features/topics/LatestPage'
+import { createQueryClient } from '@/lib/queryClient'
 
-type Health = { status: string; database: string }
+/** シートごとの画面。テストでは、これを MemoryRouter の中に置く。 */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<AppShell />}>
+        <Route index element={<LatestPage />} />
+        <Route path="favorites" element={<FavoritesPage />} />
+        <Route path="backlog" element={<BacklogPage />} />
+        <Route path="articles" element={<ArticlesPage />} />
+        <Route path="rejected" element={<RejectedPage />} />
+        <Route path="insights" element={<InsightsPage />} />
+        <Route path="settings" element={<SettingsPage />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+  )
+}
 
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    apiGet<Health>('/health', { signal: controller.signal })
-      .then(setHealth)
-      .catch((e: unknown) => {
-        if (!controller.signal.aborted) setError(String(e))
-      })
-    return () => controller.abort()
-  }, [])
-
+  const [client] = useState(createQueryClient)
   return (
-    <main className="flex min-h-svh items-center justify-center p-6">
-      <Card className="w-full max-w-sm">
-        <CardHeader>
-          <CardTitle>app-template</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {error && <p className="text-destructive">API: {error}</p>}
-          {!error && !health && <p className="text-muted-foreground">loading…</p>}
-          {health && (
-            <p>
-              API: <span data-testid="health-status">{health.status}</span> / DB: {health.database}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-    </main>
+    <QueryClientProvider client={client}>
+      <TooltipProvider delayDuration={300}>
+        <BrowserRouter>
+          <AppRoutes />
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
   )
 }

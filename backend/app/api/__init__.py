@@ -2,7 +2,11 @@
 
 from fastapi import APIRouter
 
-from app.api import health
+from app.api import health, insights, settings, status, topics
 
 api_router = APIRouter(prefix="/api")
 api_router.include_router(health.router)
+api_router.include_router(topics.router)
+api_router.include_router(status.router)
+api_router.include_router(insights.router)
+api_router.include_router(settings.router)
