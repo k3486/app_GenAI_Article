@@ -48,3 +48,4 @@ scripts/        補助スクリプト
 - aws-docs はコンテキスト節約のため AWS の作業まで止めている。使うときは `.claude/settings.json` の
   `disabledMcpjsonServers` から `enabledMcpjsonServers` へ移す
 - ファイル編集後は hook で ruff format / prettier が自動で走る
+- 作業やコミットの区切りごとに、指示を待たず `.steering/history.md` へ1行追記する（日付｜内容｜記録へのリンク。追記のみ）。コミットする場合は同じコミットに含める
