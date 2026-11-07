@@ -25,7 +25,9 @@
 - 追記済みで未対応: `backend/CLAUDE.md` の「Alembic は未導入」の記述が古い（上司の了承を得て直す）
 - [x] 4. 収集のコード（2026-11-07）: `config/sources.yaml`（29件・使えるのは26件。RSS／サイトマップ／一覧／Zenn／Qiita／HF を実際に取得して確認済み）、`config/scoring.yaml`（AI 関連語）、`app/services/collect/`（urls・fetcher・extract・browser・collectors・pipeline・run・source_config）、`scripts/collect.py`、移行 `0002`（記事に summary・fetch_error）。テスト backend 178件・lint・型チェック通過
 - [x] 4. 収集の実地確認（2026-11-07 実施。試しのデータは消去済み・バックアップ有）: 候補3,366→通過186→全文172・概要のみ10（OpenAI News 全件 HTTP 403）・失敗2・対象外2。ブラウザ取り直しは0回（未検証のまま）。結果は G2 で報告
-- [ ] **G2: 本文の取得率と取れなかったサイトを確認（Haiku を使う前）**
+- [x] G2 の事後作業（2026-11-07）: 候補の上限の既定を 80→200（`app_settings.py`・DB の保存値も更新）、`make collect` を追加、`docs/` に収集の仕様を反映、`backend/CLAUDE.md` の Alembic 記述を修正。`make lint`・pytest 178件・Vitest 8件 通過
+- [ ] **G2: 本文の取得率と取れなかったサイトを確認（Haiku を使う前）** ※資料は決定事項に記載済み。上司の最終了承待ち
+- [ ] `ANTHROPIC_API_KEY` がコンテナに届かない件の原因調査（env-file はコンテナ作成時のみ読込。Rebuild 未実施／書式／変数名の疑い。上司の端末での確認待ち）
 
 ## 5. Haiku の処理 → G3 → G4
 - [ ] LLM の口（最新 Haiku の選択・費用の記録・上限）、スキルの読み込み

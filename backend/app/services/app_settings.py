@@ -24,7 +24,7 @@ def default_settings() -> Settings:
         threshold=DEFAULT_THRESHOLD,
         max_selected=10,
         max_major=3,
-        max_candidates=80,
+        max_candidates=200,
         max_scored=50,
         month_limit_usd=10.0,
         run_limit_usd=0.5,

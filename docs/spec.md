@@ -1,14 +1,14 @@
 # 仕様（現在）
 
 > このファイルは**今の仕様だけ**を書く。変わったら書き換える（履歴は `.steering/history.md`）。
-> 最終更新: 2026-11-07（段階① 画面・DB・API まで。収集と Haiku は未実装）
+> 最終更新: 2026-11-07（画面・DB・API・収集まで。Haiku の処理は未実装）
 
 ## 概要
 生成AIの記事を集め、好みで選定し、関心に沿って整理した日本語の記事を、ダッシュボードで見る個人用アプリ。
 設計の全体は `.steering/20261107-local-dashboard/design.md`。
 
-**実装済み**: 7シートの画面、DB（表・移行・全文検索・バックアップ）、API、点数の計算と選定の判定。
-**未実装**: 記事の収集、Haiku による採点・整理記事、更新ボタン、壁打ち、好みメモ・プロファイルの修正案。
+**実装済み**: 7シートの画面、DB（表・移行・全文検索・バックアップ）、API、点数の計算と選定の判定、記事の収集（本文の取得まで）。
+**未実装**: Haiku による採点・整理記事、更新ボタン、壁打ち、好みメモ・プロファイルの修正案。
 いまは `make seed`（試しの架空のデータ）で画面を確認できる。
 
 ## 画面
@@ -49,6 +49,14 @@
 
 入出力の型は `backend/app/schemas/`。画面の型は `make types` で自動生成する（`frontend/src/lib/api-types.ts`）。
 
+## 収集
+- 情報源は `backend/config/sources.yaml`（RSS・サイトマップ・一覧ページ・Zenn・Qiita・Hugging Face・arXiv）。取れない情報源は `disabled_reason` を付けて止める
+- 流れ: 候補を集める → 古い・重複・AI と無関係・対象外の言語を除く → 上限（既定 200 件、画面の設定）まで公式を優先して残す → 本文を取る
+- 本文は、全文（trafilatura で抽出）／概要のみ／失敗に分類して保存する。短すぎるページはブラウザ（Chrome）で取り直す
+- 礼儀: robots.txt を守り、同じサイトへの同時接続・間隔を制限する（arXiv は 3 秒に 1 回・同時 1 接続）。ログイン・有料・確認画面（Cloudflare 等）は破らず、「全文未取得」とする
+- Brave Search は使わない（規約が検索結果の保存と AI の評価への利用を禁じるため）
+- 実行は `make collect`。結果は情報源ごとの表（全文・概要・失敗・平均文字数・理由）で出る
+
 ## データ（DB）
 `sources`・`topics`（話題。あなたの操作の状態も持つ）・`articles`・`article_texts`（本文）・`scores`（5観点・そのときの重み）・
 `digests`（整理記事）・`runs`・`run_issues`・`search_queries`・`llm_usage`（Haiku の費用）・`settings`。
@@ -60,6 +68,7 @@
 |---|---|
 | `make migrate` | DB の表を最新の形にする（`make dev` で自動実行） |
 | `make seed` | 試しのデータを入れる（`--reset` で入れ直し、`--clear` で全部消す） |
+| `make collect` | 記事を集めて本文を取る（`ARGS="--dry-run --since-days 1 --source <key>"` で絞れる） |
 | `make backup` | DB のバックアップ（`data/backups/` に7世代） |
 | `make types` | API の仕様から画面の型を作り直す（API を変えたら実行） |
 

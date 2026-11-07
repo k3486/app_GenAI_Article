@@ -1,5 +1,5 @@
 # よく使うコマンドはすべてここから実行する（Claude Code もこれを使う）
-.PHONY: setup dev dev-api dev-web test lint format typecheck types migrate seed backup
+.PHONY: setup dev dev-api dev-web test lint format typecheck types migrate seed backup collect
 
 UV := uv
 NPM := npm --prefix frontend
@@ -34,6 +34,9 @@ seed: migrate ## 画面確認用の試しのデータを DB に入れる（入�
 
 backup: ## DB のバックアップを作る（data/backups/ に7世代）
 	cd backend && $(UV) run python -m scripts.backup
+
+collect: migrate ## 記事を集めて本文を取る（DB に書く）。例: make collect ARGS="--dry-run --since-days 1"
+	cd backend && $(UV) run python -m scripts.collect $(ARGS)
 
 types: ## API の仕様(OpenAPI)から frontend の型(src/lib/api-types.ts)を作り直す。API を変えたら実行
 	cd backend && $(UV) run python -c "import json; from app.main import app; print(json.dumps(app.openapi()))" > ../data/openapi.json

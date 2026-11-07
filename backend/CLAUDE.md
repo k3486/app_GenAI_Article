@@ -23,7 +23,7 @@
 - エンドポイントは戻り値の型（Pydantic モデル）を明示する
 - DB は `Depends(get_session)` で受け取る（直接 `engine` を触らない）
 - パッケージ追加は `uv add <pkg>` ／ 開発用は `uv add --dev <pkg>`（pip は使わない）
-- テーブルを初めて作るときに Alembic を導入する（それまでは入れない）
+- 表の形の変更は Alembic（`make migrate`）。モデルを変えたら移行ファイルを追加する（ずれはテストで検知）
 
 ## LLM（ワークフロー・エージェント）
 - 既定は LangChain（`create_agent`）。決まった手順と LLM の判断を組み合わせる独自の流れは LangGraph
