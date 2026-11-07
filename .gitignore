@@ -1,0 +1,32 @@
+# secrets（キーは ../.secrets/.env に置く。ここには置かない）
+.env
+.env.*
+!.env.example
+
+# python
+.venv/
+__pycache__/
+*.pyc
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# data（SQLite 本体と -wal / -shm）
+data/*.db*
+
+# editor / os
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# claude code（個人設定はコミットしない）
+.claude/settings.local.json
+
+# Playwright MCP の出力
+.playwright-mcp/

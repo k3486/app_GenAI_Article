@@ -1,0 +1,23 @@
+{
+  "name": "app-template",
+  "image": "mcr.microsoft.com/devcontainers/python:1-3.12-bookworm",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "26" },
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+  // ホスト(Windows)側の PowerShell で実行: リポジトリの隣の .secrets/.env が無ければ空で作る（無いとコンテナが起動しない）
+  "initializeCommand": [
+  "powershell", "-NoProfile", "-Command",
+  "$d = '${localWorkspaceFolder}/../.secrets'; New-Item -ItemType Directory -Force -Path $d | Out-Null; $f = \"$d/.env\"; if (-not (Test-Path $f)) { New-Item -ItemType File -Path $f | Out-Null }"
+],
+  // APIキーは環境変数としてだけ渡す（.secrets フォルダ自体はコンテナにマウントしない）
+  "runArgs": ["--env-file", "${localWorkspaceFolder}/../.secrets/.env"],
+  "containerEnv": {
+    "UV_PYTHON_PREFERENCE": "only-system"
+  },
+  // Claude Code のログイン情報は全リポジトリ共通の固定名ボリュームに保存（リポジトリを変えても再ログイン不要）
+  "mounts": ["source=claude-code-config,target=/home/vscode/.claude,type=volume"],
+  "postCreateCommand": "sudo chown -R vscode:vscode /home/vscode/.claude && curl -LsSf https://astral.sh/uv/install.sh | sh && export PATH=$HOME/.local/bin:$PATH && make setup && (sudo mv /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn.list.disabled 2>/dev/null || true) && npx -y playwright install --with-deps chrome",
+  "forwardPorts": [8000, 5173]
+}
