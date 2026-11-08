@@ -115,4 +115,3 @@
 | `DATABASE_URL` | `sqlite:///<リポジトリ>/data/app.db` | DB の接続先 |
 | `APP_NAME` | `ai-news-dashboard` | API のタイトル |
 | `ANTHROPIC_API_KEY` | なし | Haiku 用の API キー（収集・採点の段階で使う） |
-| `OPENAI_API_KEY` | なし | 雛形の名残。この作業では使わない（Haiku 固定） |

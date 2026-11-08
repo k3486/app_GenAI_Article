@@ -13,3 +13,5 @@
 | 2026-11-08 | G4 通過。整理記事（5種類・別の Haiku による校閲・「AI の意見」の区別）を実装。3行まとめは白背景＋黒枠 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
 | 2026-11-08 | G5 の実装: 更新ボタン（別プロセス・二重実行防止）、壁打ち（ツールを使う Haiku・メモ）、好みメモと興味プロファイルの修正案（承認・履歴・採点への反映）。実機で見つけた不具合3件を修正 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
 | 2026-11-08 | backend/CLAUDE.md の「LLM」の節を実態（Anthropic SDK の直接利用・費用の予約・agent.py）に合わせて書き直し | backend/CLAUDE.md |
+| 2026-11-08 | G5 通過（上司承認）。壁打ちへの校閲は見送り。次は本番の収集の実行 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
+| 2026-11-08 | 本番の収集を1回実行（実行 #5・約22セント・整理記事 +45）。雛形の名残（get_llm_provider・OpenAI のキー設定）を削除 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
