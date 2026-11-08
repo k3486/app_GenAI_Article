@@ -12,3 +12,4 @@
 | 2026-11-07 | G3 通過。判定を reselect で最新化（選定 32→37・重大 3→1）、週刊ニュースレター（digest）は重大ニュースにしない | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
 | 2026-11-08 | G4 通過。整理記事（5種類・別の Haiku による校閲・「AI の意見」の区別）を実装。3行まとめは白背景＋黒枠 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
 | 2026-11-08 | G5 の実装: 更新ボタン（別プロセス・二重実行防止）、壁打ち（ツールを使う Haiku・メモ）、好みメモと興味プロファイルの修正案（承認・履歴・採点への反映）。実機で見つけた不具合3件を修正 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
+| 2026-11-08 | backend/CLAUDE.md の「LLM」の節を実態（Anthropic SDK の直接利用・費用の予約・agent.py）に合わせて書き直し | backend/CLAUDE.md |
