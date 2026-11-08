@@ -1,5 +1,7 @@
 """Haiku の出力の型。構造化出力の定義はこの型から作る（スキルのファイルには形を書かない）。"""
 
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.schemas.topics import ArticleType, Category
@@ -40,3 +42,40 @@ class GroupOutput(BaseModel):
     same_topic_sets: list[list[int]] = Field(
         description="新着の記事どうしで同じ内容のもの（記事 ID の組。2件以上）"
     )
+
+
+class DigestParagraph(BaseModel):
+    text: str = Field(description="段落の本文（日本語・ですます調）")
+    inference: bool = Field(
+        description="AI（執筆者）の意見・推測・評価なら true（画面では「AI の意見」と表示される）"
+    )
+
+
+class DigestSection(BaseModel):
+    heading: str = Field(description="見出し（構成の項目名）")
+    paragraphs: list[DigestParagraph] = Field(min_length=1)
+
+
+class DigestOutput(BaseModel):
+    """整理記事スキルの出力。URL は書かない（末尾の URL 一覧はプログラムが DB から付ける）。"""
+
+    lead: list[str] = Field(
+        min_length=3, max_length=3, description="先頭の3行まとめ（各行は1文、80字以内）"
+    )
+    sections: list[DigestSection] = Field(
+        min_length=1, description="種類ごとの構成の項目。書くことがない項目は省く"
+    )
+
+
+class ParagraphVerdict(BaseModel):
+    index: int = Field(description="段落の番号")
+    origin: Literal["article", "ai"] = Field(
+        description="article=材料に書かれていること／ai=AI が付け加えた意見・推測・評価"
+    )
+    reason: str = Field(description="理由（日本語・30字以内）")
+
+
+class VerifyOutput(BaseModel):
+    """整理記事の校閲スキルの出力。すべての段落に1つずつ判定を返す。"""
+
+    verdicts: list[ParagraphVerdict]

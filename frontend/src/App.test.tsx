@@ -99,15 +99,18 @@ test('最新トピック: 更新の回ごとに区切り、重大ニュースを
   expect(screen.getByText(/モデル変更：claude-haiku-4-5 → claude-haiku-5-5/)).toBeInTheDocument()
 })
 
-test('カードを開くと整理記事が出て、推測の段落は「考察」と区別される', async () => {
+test('カードを開くと整理記事が出て、AI の意見の段落は「AI の意見」と区別される', async () => {
   const user = userEvent.setup()
   renderApp()
   await user.click(await screen.findByRole('button', { name: '今日の記事 の詳細を開く' }))
   const dialog = await screen.findByRole('dialog')
   expect(await within(dialog).findByText('3行まとめ')).toBeInTheDocument()
   expect(within(dialog).getByText('事実の段落です。')).toBeInTheDocument()
-  expect(within(dialog).getAllByText('考察')).toHaveLength(1)
-  expect(within(dialog).getByRole('region', { name: '点数の内訳' })).toBeInTheDocument()
+  expect(within(dialog).getAllByText('AI の意見')).toHaveLength(1)
+  const breakdown = within(dialog).getByRole('region', { name: '点数の内訳' })
+  const urls = within(dialog).getByRole('region', { name: 'URL 一覧' })
+  // 点数の内訳は、URL 一覧よりも下（ダイアログの一番下）に出す
+  expect(urls.compareDocumentPosition(breakdown) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   expect(within(dialog).getByRole('link', { name: /元の記事を開く/ })).toHaveAttribute(
     'rel',
     'noopener noreferrer',

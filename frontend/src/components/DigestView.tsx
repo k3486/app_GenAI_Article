@@ -4,11 +4,14 @@ import { Badge } from '@/components/ui/badge'
 import { formatMonthDay } from '@/lib/format'
 import type { Digest, RelatedArticle } from '@/lib/types'
 
-/** 整理記事。Haiku の推測の段落は「考察」として、事実と見分けられるようにする。 */
+/** 整理記事。AI（Haiku）の意見の段落は「AI の意見」として、記事の内容と見分けられるようにする。 */
 export function DigestView({ digest, articles }: { digest: Digest; articles: RelatedArticle[] }) {
   return (
     <div className="space-y-6">
-      <section aria-label="3行まとめ" className="bg-accent rounded-lg p-4">
+      <section
+        aria-label="3行まとめ"
+        className="bg-background border-foreground rounded-lg border p-4"
+      >
         <h3 className="text-accent-foreground mb-2 text-sm font-semibold">3行まとめ</h3>
         <ol className="space-y-1.5 text-sm leading-relaxed">
           {digest.lead.map((line, i) => (
@@ -31,7 +34,7 @@ export function DigestView({ digest, articles }: { digest: Digest; articles: Rel
                   className="border-primary/60 bg-accent/40 border-l-2 border-dashed py-1.5 pl-3 text-sm leading-relaxed"
                 >
                   <Badge variant="outline" className="mr-2 align-middle text-xs">
-                    考察
+                    AI の意見
                   </Badge>
                   {p.text}
                 </p>
@@ -74,7 +77,7 @@ export function DigestView({ digest, articles }: { digest: Digest; articles: Rel
       </section>
 
       <p className="text-muted-foreground text-xs">
-        整理：{digest.model_id}。「考察」は記事に書かれていない Haiku の推測です。
+        整理：{digest.model_id}。「AI の意見」は記事に書かれておらず、AI が付け加えたものです。
       </p>
     </div>
   )

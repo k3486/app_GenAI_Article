@@ -92,7 +92,7 @@ class TopicList(BaseModel):
 
 class Paragraph(BaseModel):
     text: str
-    # True の段落は Haiku の推測（画面で「（考察）」として区別して表示する）
+    # True の段落は AI（Haiku）の意見（画面で「AI の意見」として区別して表示する）
     inference: bool = False
 
 

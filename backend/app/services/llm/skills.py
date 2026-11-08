@@ -16,7 +16,8 @@ class Skill:
     version: str  # 内容のハッシュ（点数・整理記事と一緒に DB に記録する）
 
 
-def load_skill(name: str, skills_dir: Path = SKILLS_DIR) -> Skill:
+def load_skill(name: str, skills_dir: Path = SKILLS_DIR, *, shared: tuple[str, ...] = ()) -> Skill:
+    """shared: skills/ 直下の共通ファイル（例: _style.md）。スキルの後ろにつなぎ、版にも含める。"""
     folder = skills_dir / name
     main = folder / "SKILL.md"
     if not main.is_file():
@@ -24,7 +25,7 @@ def load_skill(name: str, skills_dir: Path = SKILLS_DIR) -> Skill:
     others = sorted(p for p in folder.glob("*.md") if p.name != "SKILL.md")
     parts: list[str] = []
     digest = hashlib.sha256()
-    for path in [main, *others]:
+    for path in [main, *others, *(skills_dir / f for f in shared)]:
         raw = path.read_text(encoding="utf-8")
         digest.update(path.name.encode() + b"\0" + raw.encode() + b"\0")
         parts.append(_FRONTMATTER.sub("", raw, count=1).strip())

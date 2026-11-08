@@ -127,9 +127,9 @@ function Body({ topic }: { topic: TopicDetail }) {
         </section>
       )}
 
-      <ScoreBreakdownView breakdown={topic.breakdown} />
-
       {topic.digest && <DigestView digest={topic.digest} articles={topic.articles} />}
+
+      <ScoreBreakdownView breakdown={topic.breakdown} />
     </div>
   )
 }

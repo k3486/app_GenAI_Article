@@ -82,6 +82,12 @@ def _print_analysis(summary: CollectSummary) -> None:
     if summary.select is not None:
         se = summary.select
         print(f"選定: 選定 {se.selected}・重大ニュース {se.major}・落選 {se.rejected}")
+    if summary.digest is not None:
+        di = summary.digest
+        print(
+            f"整理記事: 作成 {di.created}・失敗 {di.failed}"
+            + ("・上限で停止" if di.budget_stopped else "")
+        )
 
 
 def main() -> None:

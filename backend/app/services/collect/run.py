@@ -12,6 +12,7 @@ from app.models import Article, ArticleText, Run, RunIssue, Source
 from app.services.app_settings import load_settings
 from app.services.collect.browser import BrowserFetcher, Renderer
 from app.services.collect.collectors import Candidate, SourceResult, discover
+from app.services.collect.digest import DigestReport, digest_selected
 from app.services.collect.fetcher import Fetcher
 from app.services.collect.group import GroupReport, group_new
 from app.services.collect.pipeline import (
@@ -62,6 +63,7 @@ class CollectSummary:
     group: GroupReport | None = None
     score: ScoreReport | None = None
     select: SelectReport | None = None
+    digest: DigestReport | None = None
 
 
 async def run_collection(
@@ -138,6 +140,7 @@ async def run_collection(
     group: GroupReport | None = None
     score: ScoreReport | None = None
     chosen_report: SelectReport | None = None
+    digest: DigestReport | None = None
     if run is not None and use_llm:
         llm = await _prepare_llm(session, run, llm_backend)
         group = await group_new(session, llm, run=run, now=now)
@@ -146,6 +149,10 @@ async def run_collection(
                 session, llm, run=run, settings=load_settings(session), now=now
             )
         chosen_report = select_scored(session, run=run, settings=load_settings(session), now=now)
+        if llm is not None:
+            digest = await digest_selected(
+                session, llm, run=run, settings=load_settings(session), now=now
+            )
 
     status = "succeeded"
     if run is not None:
@@ -153,7 +160,7 @@ async def run_collection(
             select(func.count()).select_from(RunIssue).where(col(RunIssue.run_id) == run.id)
         ).one()
         status = "partial" if has_issue else "succeeded"
-        if (score and score.budget_stopped) or (group and group.budget_stopped):
+        if any(r and r.budget_stopped for r in (score, group, digest)):
             status = "budget_stopped"
         run.status = status
         run.new_count = len(registered)
@@ -174,6 +181,7 @@ async def run_collection(
         group=group,
         score=score,
         select=chosen_report,
+        digest=digest,
     )
 
 
