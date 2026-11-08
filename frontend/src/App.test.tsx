@@ -46,6 +46,9 @@ function respond(method: string, url: string): unknown {
     return { items, total: items.length, page: 1, page_size: 50 }
   }
   if (u.pathname === '/api/topics/1') return makeDetail()
+  if (u.pathname === '/api/topics/1/chat') return { messages: [], rounds_used: 0, rounds_limit: 20 }
+  if (u.pathname === '/api/proposals') return []
+  if (u.pathname === '/api/profile/versions') return []
   if (u.pathname.endsWith('/state')) return makeCard()
   if (u.pathname === '/api/sources') return sources
   if (u.pathname === '/api/insights') return insights

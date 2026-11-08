@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol, cast
 
 import anthropic
 import pydantic
@@ -24,6 +24,36 @@ class RawResult[T: BaseModel]:
 
 
 @dataclass(frozen=True)
+class ToolSpec:
+    """Haiku に見せるツールの定義（名前・説明・引数の JSON スキーマ）。"""
+
+    name: str
+    description: str
+    input_schema: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    input: dict[str, Any]
+
+
+@dataclass(frozen=True)
+class RawTurn:
+    """ツールを使える呼び出し（1往復分）の結果。"""
+
+    content: list[Any]  # 次の呼び出しにそのまま渡す（考えたブロックを含む。中身は触らない）
+    text: str
+    tool_calls: list[ToolCall]
+    input_tokens: int
+    output_tokens: int
+    cache_write_tokens: int = 0
+    cache_read_tokens: int = 0
+    stop_reason: str = ""
+
+
+@dataclass(frozen=True)
 class ModelEntry:
     id: str
     created_at: datetime
@@ -41,6 +71,18 @@ class LlmBackend(Protocol):
         effort: Effort,
         max_tokens: int,
     ) -> RawResult[T]: ...
+
+    async def converse(
+        self,
+        *,
+        model: str,
+        system: list[str],
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpec],
+        allow_tools: bool,
+        effort: Effort,
+        max_tokens: int,
+    ) -> RawTurn: ...
 
     async def list_models(self) -> list[ModelEntry]: ...
 
@@ -97,6 +139,58 @@ class AnthropicBackend:
             output_tokens=usage.output_tokens,
             cache_write_tokens=usage.cache_creation_input_tokens or 0,
             cache_read_tokens=usage.cache_read_input_tokens or 0,
+        )
+
+    async def converse(
+        self,
+        *,
+        model: str,
+        system: list[str],
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpec],
+        allow_tools: bool,
+        effort: Effort,
+        max_tokens: int,
+    ) -> RawTurn:
+        blocks: list[anthropic.types.TextBlockParam] = [
+            {"type": "text", "text": text} for text in system
+        ]
+        blocks[-1]["cache_control"] = {"type": "ephemeral"}
+        tool_params: Any = [
+            {"name": t.name, "description": t.description, "input_schema": t.input_schema}
+            for t in tools
+        ]
+        tool_choice: Any = {"type": "auto"} if allow_tools else {"type": "none"}
+        try:
+            message = await self._client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                system=blocks,
+                messages=cast(Any, messages),
+                tools=tool_params,
+                tool_choice=tool_choice,
+                output_config={"effort": effort},
+            )
+        except anthropic.APIError as error:
+            raise LlmUnavailableError(f"{type(error).__name__}: {error}") from error
+        if message.stop_reason == "refusal":
+            raise LlmRefusedError("モデルが応答を拒否しました")
+        if message.stop_reason == "max_tokens":
+            raise LlmFormatError("出力が長すぎて途中で切れました")
+        usage = message.usage
+        return RawTurn(
+            content=list(message.content),
+            text="".join(b.text for b in message.content if b.type == "text"),
+            tool_calls=[
+                ToolCall(id=b.id, name=b.name, input=dict(cast(Any, b.input)))
+                for b in message.content
+                if b.type == "tool_use"
+            ],
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cache_write_tokens=usage.cache_creation_input_tokens or 0,
+            cache_read_tokens=usage.cache_read_input_tokens or 0,
+            stop_reason=message.stop_reason or "",
         )
 
     async def list_models(self) -> list[ModelEntry]:

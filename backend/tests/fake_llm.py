@@ -3,11 +3,12 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 from pydantic import BaseModel
 
 from app.schemas.analysis import ScoreOutput
-from app.services.llm.backend import Effort, ModelEntry, RawResult
+from app.services.llm.backend import Effort, ModelEntry, RawResult, RawTurn, ToolSpec
 from app.services.llm.errors import LlmError
 
 Responder = Callable[[type[BaseModel], list[str], str], BaseModel | LlmError]
@@ -52,6 +53,9 @@ class FakeBackend:
     input_tokens: int = 1000
     output_tokens: int = 200
     calls: list[Call] = field(default_factory=list)
+    # ツールを使う呼び出し（converse）用: 決めておいた応答を順に返す
+    scripted: list[RawTurn | LlmError] = field(default_factory=list)
+    converse_calls: list[dict[str, Any]] = field(default_factory=list)
 
     async def parse[T: BaseModel](
         self,
@@ -71,6 +75,30 @@ class FakeBackend:
         return RawResult(
             parsed=result, input_tokens=self.input_tokens, output_tokens=self.output_tokens
         )
+
+    async def converse(
+        self,
+        *,
+        model: str,
+        system: list[str],
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpec],
+        allow_tools: bool,
+        effort: Effort,
+        max_tokens: int,
+    ) -> RawTurn:
+        self.converse_calls.append(
+            {
+                "system": system,
+                "messages": [dict(m) for m in messages],
+                "tools": [t.name for t in tools],
+                "allow_tools": allow_tools,
+            }
+        )
+        step = self.scripted.pop(0)
+        if isinstance(step, LlmError):
+            raise step
+        return step
 
     async def list_models(self) -> list[ModelEntry]:
         if isinstance(self.models, LlmError):

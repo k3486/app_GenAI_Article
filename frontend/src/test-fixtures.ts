@@ -65,6 +65,7 @@ export function makeDetail(overrides: Partial<TopicDetail> = {}): TopicDetail {
       model_id: 'claude-haiku-5-5',
       created_at: now,
     },
+    notes: [],
     articles: [
       {
         title: 'テスト用の記事タイトル',
@@ -95,6 +96,7 @@ export const status: AppStatus = {
     search_queries: [],
   },
   budget: { month_cost_usd: 2.4, month_limit_usd: 10, run_limit_usd: 0.5 },
+  pending_proposals: 0,
   sample_mode: true,
 }
 

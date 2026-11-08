@@ -19,8 +19,8 @@ NOW = datetime(2026, 11, 7, 3, 0, tzinfo=UTC)
 MODEL = "claude-haiku-5-5"
 
 
-def make_run(session: Session) -> Run:
-    run = Run(trigger="manual", started_at=NOW, heartbeat_at=NOW)
+def make_run(session: Session, status: str = "running") -> Run:
+    run = Run(trigger="manual", status=status, started_at=NOW, heartbeat_at=NOW)
     session.add(run)
     session.commit()
     session.refresh(run)
@@ -500,7 +500,8 @@ def test_recompute_refreshes_the_official_bonus_from_the_current_rule(session: S
 
 
 def test_the_cap_applies_per_run_when_recomputing(session: Session) -> None:
-    first, second = make_run(session), make_run(session)
+    # 実行中の行は1つまでなので、終わった実行を2つ作る
+    first, second = make_run(session, "succeeded"), make_run(session, "succeeded")
     a = scored_topic(session, first, 1, level=5)
     b = scored_topic(session, second, 2, level=5)
     for topic, run in ((a, first), (b, second)):

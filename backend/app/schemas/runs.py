@@ -45,5 +45,7 @@ class Budget(BaseModel):
 class AppStatus(BaseModel):
     latest_run: RunSummary | None
     budget: Budget
+    # 承認待ちの興味プロファイルの修正案の数（ホームのバッジ）
+    pending_proposals: int = 0
     # 試しのデータで動いている間は True（画面に注意書きを出す）
     sample_mode: bool

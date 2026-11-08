@@ -1,12 +1,14 @@
 """更新の実行履歴・状態・費用の集計。"""
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
-from app.models import LlmUsage, Run, RunIssue, SearchQuery
+from app.models import LlmUsage, ProfileProposal, Run, RunIssue, SearchQuery
 from app.schemas.runs import AppStatus, Budget, RunSummary
 from app.services.app_settings import is_sample_mode, load_settings
 
@@ -39,6 +41,54 @@ def fail_stale_runs(session: Session, now: datetime | None = None) -> int:
         )
     session.commit()
     return len(stale)
+
+
+class RunAlreadyRunningError(Exception):
+    """すでに更新が動いている。"""
+
+
+class RunLaunchError(Exception):
+    """更新の処理（別プロセス）を起動できなかった。"""
+
+
+# 実行の行の ID を受け取り、更新の処理を別プロセスで起動する関数
+Launcher = Callable[[int], None]
+
+
+def start_run(session: Session, launcher: Launcher) -> Run:
+    """「更新」ボタン: 実行の行を作って、更新の処理を別プロセスで起動する（待たずに返す）。"""
+    fail_stale_runs(session)
+    if session.exec(select(Run.id).where(col(Run.status) == "running")).first() is not None:
+        raise RunAlreadyRunningError
+    run = Run(trigger="manual", status="running")
+    session.add(run)
+    try:
+        session.commit()
+    except IntegrityError as error:  # 同時に押された（部分一意インデックスに当たった）
+        session.rollback()
+        raise RunAlreadyRunningError from error
+    session.refresh(run)
+    assert run.id is not None
+    try:
+        launcher(run.id)
+    except OSError as error:
+        run.status = "failed"
+        run.finished_at = _now()
+        session.add(run)
+        session.add(
+            RunIssue(
+                run_id=run.id,
+                source_name="更新処理",
+                stage="起動",
+                message=(
+                    f"更新の処理を起動できませんでした"
+                    f"（{type(error).__name__}: {str(error)[:120]}）"
+                ),
+            )
+        )
+        session.commit()
+        raise RunLaunchError from error
+    return run
 
 
 def _summary(session: Session, run: Run) -> RunSummary:
@@ -105,5 +155,10 @@ def get_status(session: Session) -> AppStatus:
             month_limit_usd=settings.month_limit_usd,
             run_limit_usd=settings.run_limit_usd,
         ),
+        pending_proposals=session.exec(
+            select(func.count())
+            .select_from(ProfileProposal)
+            .where(col(ProfileProposal.status) == "pending")
+        ).one(),
         sample_mode=is_sample_mode(session),
     )

@@ -1,12 +1,13 @@
 import { Siren } from 'lucide-react'
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { FilterBar, type Filters } from '@/components/FilterBar'
 import { CARD_GRID, EmptyState, ErrorNotice, PageHeader } from '@/components/PageHeader'
 import { TopicCardView } from '@/components/TopicCardView'
 import { Skeleton } from '@/components/ui/skeleton'
 import { runDayLabel } from '@/lib/format'
-import { useTopics } from '@/lib/queries'
+import { useStatus, useTopics } from '@/lib/queries'
 import type { TopicCard } from '@/lib/types'
 
 /** 更新の回ごとに区切る（今日→昨日→…）。中は点数の高い順（API が並べて返す）。 */
@@ -38,6 +39,7 @@ export function LatestPage() {
   const [filters, setFilters] = useState<Filters>({ q: '' })
   const { data, isPending, isError } = useTopics({ view: 'latest', ...filters, pageSize: 100 })
 
+  const pending = useStatus().data?.pending_proposals ?? 0
   const items = data?.items ?? []
   const majors = items.filter((t) => t.selection === 'major')
   const groups = groupByRun(items.filter((t) => t.selection !== 'major'))
@@ -48,6 +50,14 @@ export function LatestPage() {
         title="最新トピック"
         description="直近7日に選ばれた記事です。更新の回ごとに、点数の高い順に並びます。"
       />
+      {pending > 0 && (
+        <Link
+          to="/settings"
+          className="bg-accent text-accent-foreground mb-4 inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm hover:underline"
+        >
+          興味プロファイルの修正案が {pending} 件あります（承認・却下してください）
+        </Link>
+      )}
       <div className="mb-6">
         <FilterBar filters={filters} onChange={setFilters} />
       </div>

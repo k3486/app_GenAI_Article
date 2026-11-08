@@ -47,5 +47,6 @@ export async function apiSend<T>(
     body: body === undefined ? undefined : JSON.stringify(body),
   })
   if (!response.ok) throw await failure(method, path, response)
+  if (response.status === 204) return undefined as T // 本文のない応答（メモの削除など）
   return (await response.json()) as T
 }

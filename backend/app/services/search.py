@@ -1,4 +1,4 @@
-"""全文検索（タイトル・要約・タグ・整理記事）。検索の窓口はここに隔離する。
+"""全文検索（タイトル・要約・タグ・整理記事・メモ）。検索の窓口はここに隔離する。
 
 SQLite は FTS5（trigram: 3文字ずつに区切る方式。日本語でも部分一致で探せる）を使う。
 PostgreSQL へ移すときは、この窓口だけを pg_trgm に差し替える（他の場所は変えない）。
@@ -7,9 +7,9 @@ PostgreSQL へ移すときは、この窓口だけを pg_trgm に差し替える
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
-from sqlmodel import Session
+from sqlmodel import Session, col, select
 
-from app.models import Digest, Score
+from app.models import Digest, Note, Score
 
 SEARCH_TABLE = "topic_search"
 _MIN_TRIGRAM = 3
@@ -31,8 +31,8 @@ def drop_search_index(connection: Connection) -> None:
     connection.exec_driver_sql(f"DROP TABLE IF EXISTS {SEARCH_TABLE}")
 
 
-def _document(score: Score, digest: Digest | None) -> str:
-    parts = [score.title_ja, score.summary_1line, *score.summary_5lines, *score.tags]
+def _document(score: Score, digest: Digest | None, notes: list[str]) -> str:
+    parts = [score.title_ja, score.summary_1line, *score.summary_5lines, *score.tags, *notes]
     if digest is not None:
         for section in digest.sections:
             parts.append(str(section.get("heading", "")))
@@ -49,7 +49,8 @@ def index_topic(session: Session, topic_id: int) -> None:
     connection.execute(text(f"DELETE FROM {SEARCH_TABLE} WHERE topic_id = :id"), {"id": topic_id})
     if score is None:
         return
-    body = _document(score, session.get(Digest, topic_id))
+    notes = session.exec(select(Note.text).where(col(Note.topic_id) == topic_id)).all()
+    body = _document(score, session.get(Digest, topic_id), list(notes))
     connection.execute(
         text(f"INSERT INTO {SEARCH_TABLE} (topic_id, body) VALUES (:id, :body)"),
         {"id": topic_id, "body": body},

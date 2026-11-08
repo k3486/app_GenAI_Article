@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 import httpx2
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from sqlmodel import Session, col, select
 
 from app.models import Article, ArticleText, Run, RunIssue, Source
@@ -36,7 +37,8 @@ from app.services.llm.budget import Budget
 from app.services.llm.client import Llm
 from app.services.llm.errors import LlmError
 from app.services.llm.models import resolve_haiku
-from app.services.runs import month_cost
+from app.services.preference import PreferenceReport, maybe_update
+from app.services.runs import RunAlreadyRunningError, month_cost
 
 
 @dataclass
@@ -64,12 +66,14 @@ class CollectSummary:
     score: ScoreReport | None = None
     select: SelectReport | None = None
     digest: DigestReport | None = None
+    preference: PreferenceReport | None = None
 
 
 async def run_collection(
     session: Session,
     config: SourcesFile,
     *,
+    run_id: int | None = None,
     only_keys: set[str] | None = None,
     since_days: int = 3,
     max_candidates: int | None = None,
@@ -90,99 +94,163 @@ async def run_collection(
     db_sources = {} if dry_run else sync_sources(session, config)
     if db_sources:
         chosen = [s for s in chosen if db_sources[s.key].enabled]
-    run: Run | None = None
-    if not dry_run:
-        run = Run(trigger="manual", started_at=now, heartbeat_at=now)
-        session.add(run)
-        session.commit()
-        session.refresh(run)
+    run = None if dry_run else _open_run(session, run_id, now)
 
-    owned = browser is None and use_browser and not dry_run
-    renderer: Renderer | None = browser
-    own_browser = BrowserFetcher() if owned else None
-    if own_browser is not None:
-        renderer = own_browser
-    try:
-        async with Fetcher(
-            transport=transport,
-            resolver=resolver,
-            min_interval=config.fetch.min_interval_seconds,
-        ) as fetcher:
-            results = await discover(fetcher, chosen, since=since, now=now)
-            if run is not None:
-                _record_source_errors(session, run, results)
-            outcome = filter_candidates(
-                session,
-                results,
-                since=since,
-                max_candidates=limit,
-                keywords=load_ai_keywords(),
-            )
-            lines = _lines(results, outcome.kept, outcome.dropped)
-            registered: list[int] = []
-            fetch = FetchReport()
-            if run is not None:
-                assert run.id is not None
-                registered = register_candidates(
-                    session,
-                    outcome.kept,
-                    sources=db_sources,
-                    configs={s.key: s for s in config.sources},
-                    run_id=run.id,
-                    now=now,
-                )
-                fetch = await fetch_pending(session, fetcher, renderer, run=run, now=now)
-                record_fetch_issues(session, run)
-    finally:
+    async def body() -> CollectSummary:
+        owned = browser is None and use_browser and not dry_run
+        renderer: Renderer | None = browser
+        own_browser = BrowserFetcher() if owned else None
         if own_browser is not None:
-            await own_browser.aclose()
+            renderer = own_browser
+        try:
+            async with Fetcher(
+                transport=transport,
+                resolver=resolver,
+                min_interval=config.fetch.min_interval_seconds,
+            ) as fetcher:
+                results = await discover(fetcher, chosen, since=since, now=now)
+                _touch(session, run)
+                if run is not None:
+                    _record_source_errors(session, run, results)
+                outcome = filter_candidates(
+                    session,
+                    results,
+                    since=since,
+                    max_candidates=limit,
+                    keywords=load_ai_keywords(),
+                )
+                lines = _lines(results, outcome.kept, outcome.dropped)
+                registered: list[int] = []
+                fetch = FetchReport()
+                if run is not None:
+                    assert run.id is not None
+                    registered = register_candidates(
+                        session,
+                        outcome.kept,
+                        sources=db_sources,
+                        configs={s.key: s for s in config.sources},
+                        run_id=run.id,
+                        now=now,
+                    )
+                    fetch = await fetch_pending(session, fetcher, renderer, run=run, now=now)
+                    record_fetch_issues(session, run)
+        finally:
+            if own_browser is not None:
+                await own_browser.aclose()
 
-    group: GroupReport | None = None
-    score: ScoreReport | None = None
-    chosen_report: SelectReport | None = None
-    digest: DigestReport | None = None
-    if run is not None and use_llm:
-        llm = await _prepare_llm(session, run, llm_backend)
-        group = await group_new(session, llm, run=run, now=now)
-        if llm is not None:
-            score = await score_pending(
-                session, llm, run=run, settings=load_settings(session), now=now
+        group: GroupReport | None = None
+        score: ScoreReport | None = None
+        chosen_report: SelectReport | None = None
+        digest: DigestReport | None = None
+        preference: PreferenceReport | None = None
+        if run is not None and use_llm:
+            llm = await _prepare_llm(session, run, llm_backend)
+            group = await group_new(session, llm, run=run, now=now)
+            _touch(session, run)
+            if llm is not None:
+                score = await score_pending(
+                    session, llm, run=run, settings=load_settings(session), now=now
+                )
+            chosen_report = select_scored(
+                session, run=run, settings=load_settings(session), now=now
             )
-        chosen_report = select_scored(session, run=run, settings=load_settings(session), now=now)
-        if llm is not None:
-            digest = await digest_selected(
-                session, llm, run=run, settings=load_settings(session), now=now
-            )
+            if llm is not None:
+                digest = await digest_selected(
+                    session, llm, run=run, settings=load_settings(session), now=now
+                )
+                preference = await maybe_update(
+                    session, llm, run=run, settings=load_settings(session), now=now
+                )
 
-    status = "succeeded"
+        status = "succeeded"
+        if run is not None:
+            has_issue = session.exec(
+                select(func.count()).select_from(RunIssue).where(col(RunIssue.run_id) == run.id)
+            ).one()
+            status = "partial" if has_issue else "succeeded"
+            if any(r and r.budget_stopped for r in (score, group, digest, preference)):
+                status = "budget_stopped"
+            session.refresh(run)
+            if run.status == "running":
+                run.status = status
+                run.new_count = len(registered)
+                run.finished_at = datetime.now(UTC)
+                run.heartbeat_at = run.finished_at
+                session.add(run)
+                session.commit()
+            else:
+                status = run.status
+        return CollectSummary(
+            run_id=run.id if run else None,
+            sources=lines,
+            discovered=sum(len(r.candidates) for r in results),
+            kept=len(outcome.kept),
+            registered=len(registered),
+            fetch=fetch,
+            status=status,
+            model_id=run.model_id if run else "",
+            cost_usd=run.cost_usd if run else 0.0,
+            group=group,
+            score=score,
+            select=chosen_report,
+            digest=digest,
+            preference=preference,
+        )
+
+    try:
+        return await body()
+    except BaseException as error:  # 落ちたときは「失敗」にして原因を残す（実行中のまま残さない）
+        if run is not None:
+            _fail_run(session, run, error)
+        raise
+
+
+def _open_run(session: Session, run_id: int | None, now: datetime) -> Run:
+    """画面の「更新」ボタンが作った実行の行を受け取る。無ければ（make collect）新しく作る。"""
+    if run_id is not None:
+        run = session.get(Run, run_id)
+        if run is None or run.status != "running":
+            raise ValueError(f"実行 {run_id} は、実行中の行として存在しません")
+        run.heartbeat_at = now
+    else:
+        run = Run(trigger="manual", started_at=now, heartbeat_at=now)
+    session.add(run)
+    try:
+        session.commit()
+    except IntegrityError as error:  # すでに別の更新が動いている
+        session.rollback()
+        raise RunAlreadyRunningError from error
+    session.refresh(run)
+    return run
+
+
+def _touch(session: Session, run: Run | None) -> None:
+    """処理が生きている印（ハートビート）を更新する。止まると10分で「失敗」と見なされる。"""
     if run is not None:
-        has_issue = session.exec(
-            select(func.count()).select_from(RunIssue).where(col(RunIssue.run_id) == run.id)
-        ).one()
-        status = "partial" if has_issue else "succeeded"
-        if any(r and r.budget_stopped for r in (score, group, digest)):
-            status = "budget_stopped"
-        run.status = status
-        run.new_count = len(registered)
-        run.finished_at = datetime.now(UTC)
-        run.heartbeat_at = run.finished_at
+        run.heartbeat_at = datetime.now(UTC)
         session.add(run)
         session.commit()
-    return CollectSummary(
-        run_id=run.id if run else None,
-        sources=lines,
-        discovered=sum(len(r.candidates) for r in results),
-        kept=len(outcome.kept),
-        registered=len(registered),
-        fetch=fetch,
-        status=status,
-        model_id=run.model_id if run else "",
-        cost_usd=run.cost_usd if run else 0.0,
-        group=group,
-        score=score,
-        select=chosen_report,
-        digest=digest,
+
+
+def _fail_run(session: Session, run: Run, error: BaseException) -> None:
+    session.rollback()
+    session.refresh(run)
+    if run.status != "running":
+        return
+    run.status = "failed"
+    run.finished_at = datetime.now(UTC)
+    session.add(run)
+    session.add(
+        RunIssue(
+            run_id=run.id or 0,
+            source_name="更新処理",
+            stage="全体",
+            message=(
+                f"予期しないエラーで止まりました（{type(error).__name__}: {str(error)[:120]}）"
+            ),
+        )
     )
+    session.commit()
 
 
 async def _prepare_llm(session: Session, run: Run, backend: LlmBackend | None) -> Llm | None:

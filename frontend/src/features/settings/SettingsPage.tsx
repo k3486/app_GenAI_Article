@@ -10,6 +10,9 @@ import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Textarea } from '@/components/ui/textarea'
 import { formatDateTime, formatUsd } from '@/lib/format'
+import { PreferenceTab } from '@/features/settings/PreferenceTab'
+import { ProfileVersions } from '@/features/settings/ProfileVersions'
+import { ProposalCards } from '@/features/settings/ProposalCards'
 import { RUN_STATUS_LABEL, SOURCE_KIND_LABEL } from '@/lib/labels'
 import { useRuns, useSaveSettings, useSettings, useSources, useToggleSource } from '@/lib/queries'
 import type { RunStatus, Settings } from '@/lib/types'
@@ -210,7 +213,15 @@ function RunsTab() {
   )
 }
 
-function ProfileTab({ value, onChange }: { value: Settings; onChange: (next: Settings) => void }) {
+function ProfileTab({
+  value,
+  onChange,
+  dirty,
+}: {
+  value: Settings
+  onChange: (next: Settings) => void
+  dirty: boolean
+}) {
   return (
     <div className="space-y-2">
       <Field
@@ -225,6 +236,7 @@ function ProfileTab({ value, onChange }: { value: Settings; onChange: (next: Set
         />
       </Field>
       <p className="text-muted-foreground text-xs tabular-nums">{value.profile.length} 文字</p>
+      <ProfileVersions locked={dirty} />
     </div>
   )
 }
@@ -374,10 +386,12 @@ export function SettingsPage() {
       />
       {isError && <ErrorNotice />}
       {isPending && <Skeleton className="h-96 rounded-xl" />}
+      <ProposalCards locked={dirty} />
       {value && (
         <Tabs defaultValue="profile">
           <TabsList className="mb-4 h-auto flex-wrap justify-start">
             <TabsTrigger value="profile">興味プロファイル</TabsTrigger>
+            <TabsTrigger value="preference">好みメモ</TabsTrigger>
             <TabsTrigger value="scoring">採点と選定</TabsTrigger>
             <TabsTrigger value="budget">費用と上限</TabsTrigger>
             <TabsTrigger value="sources">情報源</TabsTrigger>
@@ -385,7 +399,10 @@ export function SettingsPage() {
           </TabsList>
 
           <TabsContent value="profile">
-            <ProfileTab value={value} onChange={setDraft} />
+            <ProfileTab value={value} onChange={setDraft} dirty={dirty} />
+          </TabsContent>
+          <TabsContent value="preference">
+            <PreferenceTab />
           </TabsContent>
           <TabsContent value="scoring">
             <ScoringTab value={value} onChange={setDraft} />

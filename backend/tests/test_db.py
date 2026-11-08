@@ -90,13 +90,15 @@ def test_auto_dismiss_only_old_unread_unpinned_items(seeded: Session) -> None:
 
 def test_stale_runs_are_marked_failed(session: Session) -> None:
     now = _now()
-    alive = Run(trigger="manual", heartbeat_at=now)
+    # 実行中の行は1つまで。止まった実行を失敗にしたあとで、生きている実行を作る
     dead = Run(trigger="manual", heartbeat_at=now - timedelta(minutes=11))
-    session.add(alive)
     session.add(dead)
     session.commit()
-
     assert runs_service.fail_stale_runs(session, now) == 1
+    alive = Run(trigger="manual", heartbeat_at=now)
+    session.add(alive)
+    session.commit()
+    assert runs_service.fail_stale_runs(session, now) == 0  # 生きている実行はそのまま
     session.refresh(alive)
     session.refresh(dead)
     assert alive.status == "running"

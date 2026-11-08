@@ -8,7 +8,7 @@
 ```
 - 開発中は Vite のプロキシで同一オリジンになるため CORS は設定していない
 - 本番（将来・AWS）は静的ファイル（frontend/dist）と API を同一オリジンで配信する想定（段階②で決める）
-- 記事の収集と Haiku の処理（話題のまとめ・採点・選定）は、API とは別のプロセス（`scripts/collect.py`）で動かす
+- 記事の収集と Haiku の処理（話題のまとめ・採点・選定・整理記事・好みメモ）は、API とは別のプロセス（`scripts/collect.py`）で動かす。画面の「更新」は、API が実行の行を作って、このプロセスを起動する（`services/run_launcher.py`。API の再起動に巻き込まれないよう、独立したセッションで起動）
 
 ## バックエンド（backend/）
 - `app/main.py` の `create_app()` が `app/api` のルーターを登録
@@ -16,11 +16,12 @@
 - `app/api/` 受付係（薄い）／`app/services/` 処理本体／`app/models/` 表／`app/schemas/` API の入出力の型
 - 主な services: `topics`（一覧・詳細・操作）、`scoring`（点数と選定の判定）、`insights`（分析の集計）、
   `collect/`（収集: urls・fetcher・extract・browser・collectors・pipeline・run、Haiku の段階: group・score・select・digest）、
-  `llm/`（Haiku を呼ぶ口: backend・client・budget・pricing・models・skills・context・ledger）、
+  `llm/`（Haiku を呼ぶ口: backend・client・budget・pricing・models・skills・context・ledger、ツールを使う往復の `agent`）、
+  `chat`（壁打ちのツールと会話・メモ）、`preference`（好みメモ・修正案・プロファイルの履歴）、
   `runs`（実行履歴・費用・失敗判定）、`sources`、`app_settings`、`search`（全文検索の窓口）、`backup`
 - 設定は `app/config.py`（環境変数のみ）。DB セッションは `Depends(get_session)`
-- `scripts/`: `collect.py`（収集）、`seed_sample.py`（試しのデータ）、`backup.py`。`sample_data.py` は試しのデータの定義
-- `skills/`: Haiku への指示（スキル。`score`・`group`・`compose-*`（整理記事の種類ごと）＋共通の `_style.md`）。内容のハッシュを版として点数・整理記事に記録する
+- `scripts/`: `collect.py`（収集）、`digest.py`・`preference.py`（整理記事・好みメモの試し作り）、`seed_sample.py`（試しのデータ）、`backup.py`。`sample_data.py` は試しのデータの定義
+- `skills/`: Haiku への指示（スキル。`score`・`group`・`verify`・`chat`・`preference`・`compose-*`（整理記事の種類ごと）＋共通の `_style.md`）。内容のハッシュを版として点数・整理記事に記録する
 - `config/sources.yaml`（情報源）、`config/scoring.yaml`（AI 関連語）
 - `config/interest_profile.default.md`: 興味プロファイルの初期値（アプリ起動後は DB の設定が正）
 
@@ -48,6 +49,9 @@
 | Alembic | 表の形の変更を、本番でも同じ手順で行うため。移行ファイルと表の定義のずれはテストで検知する |
 | 画面と API の型を自動生成 | API を変えたときに、画面側の食い違いをコンパイルの段階で見つけるため |
 | 話題を一覧の単位にする | 同じ話題の報道が重複して並ばないようにするため（代表記事に関連記事がぶら下がる） |
+| 壁打ちは自前のツール往復（SDK の `tool_runner` を使わない） | 1回呼ぶたびに費用を予約してから呼ぶ既存の仕組み（`Budget`）を使い、上限を確実に守るため |
+| 実行中の更新は1つまで（DB の部分一意インデックス） | 画面・API の確認をすり抜けて同時に2つ走っても、DB が止める最後の砦にするため |
+| 整理記事は別の Haiku が校閲する | 書き手が書きながら「事実か推測か」の印を付けると付け忘れるため。別の目で判定し、どちらかが AI の意見と言えば AI の意見にする |
 | Vite + React + TS | 静的ファイルとして出力でき、AWS 無料枠（S3 等）で公開しやすい |
 | oxlint | Vite の標準。ESLint より高速で設定が少ない |
 | 秘密情報は環境変数 | ローカル（.secrets/.env）と AWS（SSM Parameter Store）でコードを変えずに済む |

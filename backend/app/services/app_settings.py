@@ -5,9 +5,9 @@ DB の settings 表に持つ。
 
 from pathlib import Path
 
-from sqlmodel import Session
+from sqlmodel import Session, select
 
-from app.models import Setting
+from app.models import ProfileVersion, Setting
 from app.schemas.settings import Settings, Weights
 from app.services.scoring import DEFAULT_THRESHOLD, DEFAULT_WEIGHTS
 
@@ -36,13 +36,28 @@ def load_settings(session: Session) -> Settings:
     return Settings.model_validate(row.value) if row else default_settings()
 
 
-def save_settings(session: Session, settings: Settings) -> Settings:
+def save_settings(
+    session: Session,
+    settings: Settings,
+    *,
+    profile_source: str = "manual",
+    proposal_id: int | None = None,
+) -> Settings:
+    """設定を保存する。興味プロファイルが変わったときは、版（履歴）を1つ追記する。"""
+    old_profile = load_settings(session).profile
     row = session.get(Setting, _APP_KEY)
     value = settings.model_dump()
     if row is None:
         session.add(Setting(key=_APP_KEY, value=value))
     else:
         row.value = value
+    if settings.profile != old_profile:
+        if session.exec(select(ProfileVersion.id)).first() is None:
+            # 初めて変えるときは、変える前の文を最初の版として残す
+            session.add(ProfileVersion(text=old_profile, source="initial"))
+        session.add(
+            ProfileVersion(text=settings.profile, source=profile_source, proposal_id=proposal_id)
+        )
     session.commit()
     return settings
 

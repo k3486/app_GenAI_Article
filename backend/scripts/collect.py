@@ -18,6 +18,7 @@ from sqlmodel import Session
 from app.db import engine
 from app.services.collect.run import CollectSummary, fetch_stats, run_collection
 from app.services.collect.source_config import load_sources
+from app.services.runs import RunAlreadyRunningError
 
 _REASON = {
     "already_seen": "取得済み",
@@ -88,6 +89,14 @@ def _print_analysis(summary: CollectSummary) -> None:
             f"整理記事: 作成 {di.created}・失敗 {di.failed}"
             + ("・上限で停止" if di.budget_stopped else "")
         )
+    if summary.preference is not None:
+        pr = summary.preference
+        if pr.updated:
+            print(f"好みメモ: 更新（評価 {pr.feedback_count} 件から）・修正案 {pr.proposals} 件")
+        elif pr.failed or pr.budget_stopped:
+            print("好みメモ: 更新できませんでした（失敗または上限）")
+        else:
+            print(f"好みメモ: 更新なし（前回から評価 {pr.feedback_count} 件）")
 
 
 def main() -> None:
@@ -98,22 +107,29 @@ def main() -> None:
     parser.add_argument("--no-browser", action="store_true", help="ブラウザでの取り直しをしない")
     parser.add_argument("--no-llm", action="store_true", help="Haiku を使わない")
     parser.add_argument("--dry-run", action="store_true", help="DB に書かない")
+    parser.add_argument(
+        "--run-id", type=int, help="（画面の更新ボタン用）作成済みの実行の行の ID を使う"
+    )
     args = parser.parse_args()
 
     config = load_sources()
     with Session(engine) as session:
-        summary = asyncio.run(
-            run_collection(
-                session,
-                config,
-                only_keys=set(args.source) if args.source else None,
-                since_days=args.since_days,
-                max_candidates=args.max_candidates,
-                use_browser=not args.no_browser,
-                use_llm=not args.no_llm,
-                dry_run=args.dry_run,
+        try:
+            summary = asyncio.run(
+                run_collection(
+                    session,
+                    config,
+                    only_keys=set(args.source) if args.source else None,
+                    since_days=args.since_days,
+                    max_candidates=args.max_candidates,
+                    use_browser=not args.no_browser,
+                    use_llm=not args.no_llm,
+                    dry_run=args.dry_run,
+                    run_id=args.run_id,
+                )
             )
-        )
+        except RunAlreadyRunningError:
+            raise SystemExit("更新中です。終わるまでお待ちください") from None
         _print(summary, dry_run=args.dry_run, session=session)
 
 

@@ -16,10 +16,11 @@ from app.schemas.analysis import ScoreOutput
 from app.schemas.settings import Settings
 from app.schemas.topics import CriterionKey
 from app.services.llm.client import Llm, LlmResult
-from app.services.llm.context import build_scoring_context
+from app.services.llm.context import build_scoring_context, scoring_feedback_ids
 from app.services.llm.errors import BudgetExceededError, LlmError
 from app.services.llm.ledger import record_usage
 from app.services.llm.skills import load_skill
+from app.services.preference import current_memo
 from app.services.scoring import OFFICIAL_BONUS, compute_total
 
 CONCURRENCY = 5
@@ -121,7 +122,9 @@ async def score_pending(
     if not picked:
         return report
     skill = load_skill("score")
-    context = build_scoring_context(session, settings.profile)
+    context = build_scoring_context(session, settings.profile, current_memo(session))
+    run.feedback_topic_ids = scoring_feedback_ids(session)  # 再現できるように記録する
+    session.add(run)
     jobs = [_build_job(session, article, source) for article, source in picked]
     weights = settings.weights.as_dict()
     gate = asyncio.Semaphore(CONCURRENCY)

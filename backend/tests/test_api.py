@@ -166,12 +166,6 @@ def test_status_and_budget(api: TestClient) -> None:
     assert len(runs[0]["search_queries"]) == 5
 
 
-def test_run_start_is_not_implemented_yet(api: TestClient) -> None:
-    response = api.post("/api/runs")
-    assert response.status_code == 501
-    assert "実装" in response.json()["detail"]
-
-
 def test_insights_are_consistent_with_the_data(api: TestClient) -> None:
     body = api.get("/api/insights").json()
     total = (

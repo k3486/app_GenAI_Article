@@ -3,11 +3,13 @@
 DB には書かない（並列で呼ぶため。記録は呼び出し側が1件ずつ llm_usage に書く）。
 """
 
+import json
 from dataclasses import dataclass
+from typing import Any
 
 from pydantic import BaseModel
 
-from app.services.llm.backend import Effort, LlmBackend, RawResult
+from app.services.llm.backend import Effort, LlmBackend, RawResult, RawTurn, ToolSpec
 from app.services.llm.budget import Budget
 from app.services.llm.errors import LlmFormatError
 from app.services.llm.pricing import cost_usd, estimate_usd
@@ -30,19 +32,31 @@ class LlmResult[T: BaseModel]:
     skill_version: str
 
 
-def _usage(model_id: str, raw: RawResult[BaseModel]) -> Usage:
+def _usage_of(
+    model_id: str, *, input_tokens: int, output_tokens: int, cache_write: int, cache_read: int
+) -> Usage:
     return Usage(
         model_id=model_id,
-        input_tokens=raw.input_tokens + raw.cache_write_tokens,
-        output_tokens=raw.output_tokens,
-        cache_read_tokens=raw.cache_read_tokens,
+        input_tokens=input_tokens + cache_write,
+        output_tokens=output_tokens,
+        cache_read_tokens=cache_read,
         cost_usd=cost_usd(
             model_id,
-            input_tokens=raw.input_tokens,
-            output_tokens=raw.output_tokens,
-            cache_write_tokens=raw.cache_write_tokens,
-            cache_read_tokens=raw.cache_read_tokens,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cache_write_tokens=cache_write,
+            cache_read_tokens=cache_read,
         ),
+    )
+
+
+def _usage(model_id: str, raw: RawResult[BaseModel]) -> Usage:
+    return _usage_of(
+        model_id,
+        input_tokens=raw.input_tokens,
+        output_tokens=raw.output_tokens,
+        cache_write=raw.cache_write_tokens,
+        cache_read=raw.cache_read_tokens,
     )
 
 
@@ -103,3 +117,49 @@ class Llm:
             )
             return LlmResult(parsed=raw.parsed, usage=total, skill_version=skill.version)
         raise AssertionError("unreachable")
+
+    async def converse(
+        self,
+        skill: Skill,
+        *,
+        context: str,
+        messages: list[dict[str, Any]],
+        tools: list[ToolSpec],
+        allow_tools: bool = True,
+        effort: Effort = "medium",
+        max_tokens: int = 4000,
+    ) -> tuple[RawTurn, Usage]:
+        """ツールを使える呼び出しを1回行う（予算の予約・精算つき）。やり直しはしない。
+
+        system の並びは「スキル（不変）→ context（記事など）」。失敗時は LlmError を出す。
+        """
+        system = [skill.text, context] if context else [skill.text]
+        chars = (
+            sum(len(s) for s in system)
+            + len(json.dumps(messages, default=str, ensure_ascii=False))
+            + len(json.dumps([t.input_schema for t in tools], ensure_ascii=False))
+        )
+        estimate = estimate_usd(self.model_id, input_chars=chars, max_output_tokens=max_tokens)
+        self.budget.reserve(estimate)
+        try:
+            turn = await self._backend.converse(
+                model=self.model_id,
+                system=system,
+                messages=messages,
+                tools=tools,
+                allow_tools=allow_tools,
+                effort=effort,
+                max_tokens=max_tokens,
+            )
+        except BaseException:
+            self.budget.settle(estimate, 0.0)
+            raise
+        usage = _usage_of(
+            self.model_id,
+            input_tokens=turn.input_tokens,
+            output_tokens=turn.output_tokens,
+            cache_write=turn.cache_write_tokens,
+            cache_read=turn.cache_read_tokens,
+        )
+        self.budget.settle(estimate, usage.cost_usd)
+        return turn, usage

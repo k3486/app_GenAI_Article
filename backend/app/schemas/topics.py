@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.schemas.chat import NoteOut
+
 ArticleType = Literal["announcement", "howto", "paper", "analysis", "industry"]
 Category = Literal[
     "dev_tools_agents",
@@ -118,5 +120,6 @@ class RelatedArticle(BaseModel):
 
 class TopicDetail(TopicCard):
     digest: Digest | None
+    notes: list[NoteOut]
     # 整理記事の末尾に出す URL 一覧（プログラムが DB の URL から作る）
     articles: list[RelatedArticle]

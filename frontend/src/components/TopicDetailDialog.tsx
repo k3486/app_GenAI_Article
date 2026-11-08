@@ -1,6 +1,7 @@
 import { ExternalLink } from 'lucide-react'
 
 import { DigestView } from '@/components/DigestView'
+import { NotesList } from '@/components/NotesList'
 import { ScoreBadge } from '@/components/ScoreBadge'
 import { ScoreBreakdownView } from '@/components/ScoreBreakdownView'
 import { StateActions } from '@/components/StateActions'
@@ -21,6 +22,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
+import { ChatPanel } from '@/features/chat/ChatPanel'
 import { formatDateTime } from '@/lib/format'
 import {
   ARTICLE_TYPE_LABEL,
@@ -129,12 +131,16 @@ function Body({ topic }: { topic: TopicDetail }) {
 
       {topic.digest && <DigestView digest={topic.digest} articles={topic.articles} />}
 
+      <NotesList topicId={topic.id} notes={topic.notes} />
+
+      <ChatPanel topicId={topic.id} notes={topic.notes} />
+
       <ScoreBreakdownView breakdown={topic.breakdown} />
     </div>
   )
 }
 
-/** どのシートからでも `?topic=ID` で開く、記事の詳細（整理記事・点数の内訳）。 */
+/** どのシートからでも `?topic=ID` で開く、記事の詳細（整理記事・メモ・壁打ち・点数の内訳）。 */
 export function TopicDetailDialog() {
   const { topicId, close } = useTopicParam()
   const { data, isPending, isError } = useTopic(topicId)

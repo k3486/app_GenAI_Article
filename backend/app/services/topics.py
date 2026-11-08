@@ -7,7 +7,7 @@ from sqlalchemy import func, update
 from sqlmodel import Session, col, select
 from sqlmodel.sql.expression import Select, SelectOfScalar
 
-from app.models import Article, Digest, Score, Source, Topic
+from app.models import Article, Digest, Note, Score, Source, Topic
 from app.schemas.topics import (
     ArticleType,
     CriterionKey,
@@ -249,6 +249,18 @@ def get_topic(session: Session, topic_id: int) -> TopicDetail | None:
         {
             **card.model_dump(),
             "digest": digest,
+            "notes": [
+                {
+                    "id": n.id,
+                    "topic_id": n.topic_id,
+                    "chat_message_id": n.chat_message_id,
+                    "text": n.text,
+                    "created_at": n.created_at,
+                }
+                for n in session.exec(
+                    select(Note).where(col(Note.topic_id) == topic_id).order_by(col(Note.id))
+                ).all()
+            ],
             "articles": [
                 {
                     "title": a.title_original or score.title_ja,

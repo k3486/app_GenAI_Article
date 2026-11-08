@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column
+from sqlalchemy import JSON, Column, Index, text
 from sqlmodel import Field, SQLModel
 
 from app.models.types import UTCDateTime, utcnow
@@ -10,6 +10,16 @@ class Run(SQLModel, table=True):
     """更新の実行履歴。ハートビートが止まった実行は「失敗」と見なす。"""
 
     __tablename__ = "runs"
+    # 「実行中」の行は1つまで（同時に2つの更新が走らないようにする最後の砦）
+    __table_args__ = (
+        Index(
+            "uq_runs_single_running",
+            "status",
+            unique=True,
+            sqlite_where=text("status = 'running'"),
+            postgresql_where=text("status = 'running'"),
+        ),
+    )
 
     id: int | None = Field(default=None, primary_key=True)
     trigger: str  # manual | scheduled
@@ -27,6 +37,10 @@ class Run(SQLModel, table=True):
     cost_usd: float = 0.0
     model_id: str = ""
     previous_model_id: str | None = None
+    # 採点の指示文に入れた👍/👎/実はよかったの話題 ID（結果を再現できるように記録する）
+    feedback_topic_ids: list[int] = Field(
+        default_factory=list, sa_column=Column(JSON, nullable=False, server_default="[]")
+    )
 
 
 class RunIssue(SQLModel, table=True):

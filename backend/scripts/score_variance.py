@@ -25,6 +25,7 @@ from app.services.llm.client import Llm
 from app.services.llm.context import build_scoring_context
 from app.services.llm.ledger import record_usage
 from app.services.llm.skills import load_skill
+from app.services.preference import current_memo
 from app.services.runs import month_cost
 from app.services.scoring import compute_total
 
@@ -56,7 +57,7 @@ async def main_async(count: int, repeat: int) -> None:
             ),
         )
         skill = load_skill("score")
-        context = build_scoring_context(session, settings.profile)
+        context = build_scoring_context(session, settings.profile, current_memo(session))
         weights = settings.weights.as_dict()
         print(f"モデル {last_model} / スキルの版 {skill.version} / {len(picked)}件 × {repeat}回")
         spreads: list[int] = []

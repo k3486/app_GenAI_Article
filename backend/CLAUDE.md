@@ -10,7 +10,7 @@
 | `app/services/<機能>.py` | ビジネスロジック |
 | `app/models/<名前>.py` | DB テーブル（SQLModel, `table=True`） |
 | `app/schemas/<機能>.py` | API の入出力型（ファイルが増えてきたら api から分離） |
-| `app/workflows/<名前>.py` | LLM のワークフロー・エージェント。services から呼ぶ |
+| `app/services/llm/` | Haiku を呼ぶ口（費用の予約・記録・スキルの読み込み）と、ツールを使う往復（`agent.py`）。LLM を使う処理も `app/services/` に置く（`workflows/` は作らない） |
 | `scripts/` | CLI・バッチ処理の入口 |
 | `tests/` | `app/` と同じ構成で `test_*.py` |
 

@@ -6,7 +6,12 @@ import type {
   AppStatus,
   ArticleType,
   Category,
+  ChatState,
   Insights,
+  Note,
+  PreferenceState,
+  ProfileVersion,
+  Proposal,
   RunSummary,
   Settings,
   SourceInfo,
@@ -75,6 +80,43 @@ export function usePatchState() {
   })
 }
 
+/** 壁打ち（話題ごとの Haiku との会話）。 */
+export function useChat(topicId: number) {
+  return useQuery({
+    queryKey: ['chat', topicId],
+    queryFn: ({ signal }) => apiGet<ChatState>(`/topics/${topicId}/chat`, { signal }),
+  })
+}
+
+export function useSendChat(topicId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (question: string) =>
+      apiSend<ChatState>('POST', `/topics/${topicId}/chat`, { question }),
+    onSuccess: (state) => {
+      client.setQueryData(['chat', topicId], state)
+      void client.invalidateQueries({ queryKey: ['status'] }) // 今月の費用が増える
+    },
+  })
+}
+
+export function useAddNote(topicId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (note: { text: string; chat_message_id?: number }) =>
+      apiSend<Note>('POST', `/topics/${topicId}/notes`, note),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['topic', topicId] }),
+  })
+}
+
+export function useDeleteNote(topicId: number) {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (noteId: number) => apiSend<undefined>('DELETE', `/notes/${noteId}`),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['topic', topicId] }),
+  })
+}
+
 export function useStatus() {
   return useQuery({
     queryKey: ['status'],
@@ -121,6 +163,71 @@ export function useSaveSettings() {
       client.setQueryData(['settings'], saved)
       void client.invalidateQueries({ queryKey: ['status'] })
     },
+  })
+}
+
+/** 好みメモ・興味プロファイルの修正案・プロファイルの履歴。 */
+export function usePreference() {
+  return useQuery({
+    queryKey: ['preference'],
+    queryFn: ({ signal }) => apiGet<PreferenceState>('/preference', { signal }),
+  })
+}
+
+export function useSavePreference() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (text: string) => apiSend<PreferenceState>('PUT', '/preference', { text }),
+    onSuccess: (state) => client.setQueryData(['preference'], state),
+  })
+}
+
+export function usePendingProposals() {
+  return useQuery({
+    queryKey: ['proposals', 'pending'],
+    queryFn: ({ signal }) => apiGet<Proposal[]>('/proposals?status=pending', { signal }),
+  })
+}
+
+/** 承認・却下のあとは、修正案・プロファイル・履歴・ホームのバッジをまとめて取り直す。 */
+function useRefreshAfterDecision() {
+  const client = useQueryClient()
+  return () => {
+    for (const key of ['proposals', 'settings', 'profile-versions', 'status']) {
+      void client.invalidateQueries({ queryKey: [key] })
+    }
+  }
+}
+
+export function useApproveProposal() {
+  const refresh = useRefreshAfterDecision()
+  return useMutation({
+    mutationFn: ({ id, editedText }: { id: number; editedText?: string }) =>
+      apiSend<Proposal>('POST', `/proposals/${id}/approve`, { edited_text: editedText ?? null }),
+    onSuccess: refresh,
+  })
+}
+
+export function useRejectProposal() {
+  const refresh = useRefreshAfterDecision()
+  return useMutation({
+    mutationFn: (id: number) => apiSend<Proposal>('POST', `/proposals/${id}/reject`),
+    onSuccess: refresh,
+  })
+}
+
+export function useProfileVersions() {
+  return useQuery({
+    queryKey: ['profile-versions'],
+    queryFn: ({ signal }) => apiGet<ProfileVersion[]>('/profile/versions', { signal }),
+  })
+}
+
+export function useRestoreVersion() {
+  const refresh = useRefreshAfterDecision()
+  return useMutation({
+    mutationFn: (id: number) => apiSend<ProfileVersion>('POST', `/profile/versions/${id}/restore`),
+    onSuccess: refresh,
   })
 }
 
