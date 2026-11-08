@@ -15,3 +15,5 @@
 | 2026-11-08 | backend/CLAUDE.md の「LLM」の節を実態（Anthropic SDK の直接利用・費用の予約・agent.py）に合わせて書き直し | backend/CLAUDE.md |
 | 2026-11-08 | G5 通過（上司承認）。壁打ちへの校閲は見送り。次は本番の収集の実行 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
 | 2026-11-08 | 本番の収集を1回実行（実行 #5・約22セント・整理記事 +45）。雛形の名残（get_llm_provider・OpenAI のキー設定）を削除 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
+| 2026-11-08 | 点数のぶれの検査（平均 2.1 点・最大 10 点）と docs の確認。①ローカル版の作業は完了。定期実行は AWS 化の段階で検討 | [.steering/20261107-local-dashboard/](20261107-local-dashboard/) |
+| 2026-11-08 | AWS 化の前に検討する項目を ideas に記録（後日、環境を用意する段階でアドバイスを求める） | [ideas/20261108-aws-deploy-checklist.md](../ideas/20261108-aws-deploy-checklist.md) |
